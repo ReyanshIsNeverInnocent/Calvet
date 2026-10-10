@@ -1,0 +1,93 @@
+export const USERNAME_EFFECTS = [
+  "none",
+  "typewriter",
+  "rainbow",
+  "shuffle",
+  "glitch",
+  "fuzzy",
+  "sparkle",
+  "particles-blue",
+  "particles-green",
+  "particles-pink",
+  "particles-red",
+  "particles-white",
+  "particles-gold",
+  "hennessy-prism",
+  "hennessy-orbit",
+  "hennessy-shimmer"
+] as const;
+
+export type Appearance = {
+  theme: "dark";
+  accentColor: string;
+  textColor: string;
+  backgroundColor: string;
+  backgroundImage: string;
+  cardOpacity: number;
+  radius: "small" | "medium" | "large";
+  shadow: boolean;
+  font: "inter" | "system" | "serif";
+  spacing: "compact" | "comfortable" | "airy";
+  animation: "none" | "subtle" | "playful" | "float" | "pulse";
+  backgroundEffect: "none" | "aurora" | "grid";
+  cardEffect: "none" | "glow" | "gradient";
+  usernameEffect: (typeof USERNAME_EFFECTS)[number];
+  reducedMotion: boolean;
+};
+
+export type Profile = {
+  id: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  bio: string;
+  avatar_url: string;
+  banner_url: string;
+  location: string;
+  pronouns: string;
+  status: string;
+  mode: "minimal" | "social" | "portfolio" | "personal";
+  is_public: boolean;
+  appearance: Appearance;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProfileLink = {
+  id: string;
+  profile_id: string;
+  title: string;
+  url: string;
+  description: string;
+  icon: string;
+  position: number;
+  enabled: boolean;
+};
+
+export type SocialLink = {
+  id: string;
+  profile_id: string;
+  platform: string;
+  url: string;
+  position: number;
+  enabled: boolean;
+};
+
+export type Project = {
+  id: string;
+  profile_id: string;
+  title: string;
+  description: string;
+  url: string;
+  image_url: string;
+  tags: string[];
+  position: number;
+  enabled: boolean;
+};
+
+export type PublicProfileData = {
+  profile: Omit<Profile, "user_id">;
+  links: ProfileLink[];
+  socials: SocialLink[];
+  projects: Project[];
+};
