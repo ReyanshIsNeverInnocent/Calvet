@@ -84,6 +84,13 @@ authentication. For local testing you may disable email confirmation in the
 provider settings. For production, configure the email confirmation flow and
 SMTP settings appropriate to your project.
 
+In **Authentication → URL Configuration**, set the **Site URL** to your
+deployed site's origin (for example, `https://your-domain.vercel.app`). Add
+both `http://localhost:3000/auth/callback` and
+`https://your-domain.vercel.app/auth/callback` to the allowed redirect URLs.
+Email confirmation links use the origin where signup started and return through
+`/auth/callback`; the deployed URL must be allowlisted for this redirect.
+
 ## Configure Google OAuth
 
 1. Create OAuth credentials in Google Cloud Console.
