@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
+import { usernameSchema } from "@/lib/validation";
 import { SiGoogle } from "@icons-pack/react-simple-icons";
 import { MessageCircle } from "lucide-react";
 
@@ -16,6 +17,7 @@ export default function AuthForm({
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [message, setMessage] = useState(
     initialAuthError ? "We couldn't complete sign-in. Please try again." : ""
   );
@@ -32,6 +34,15 @@ export default function AuthForm({
     setLoading(true);
     setMessage("");
 
+    const parsedUsername =
+      mode === "signup" ? usernameSchema.safeParse(username) : null;
+
+    if (parsedUsername && !parsedUsername.success) {
+      setMessage(parsedUsername.error.issues[0]?.message ?? "Enter a valid username.");
+      setLoading(false);
+      return;
+    }
+
     const result =
       mode === "login"
         ? await supabase.auth.signInWithPassword({ email, password })
@@ -39,12 +50,17 @@ export default function AuthForm({
             email,
             password,
             options: {
+              data: { calvet_username: parsedUsername?.data },
               emailRedirectTo: `${window.location.origin}/auth/callback`
             }
           });
 
     if (result.error) {
-      setMessage(result.error.message);
+      setMessage(
+        result.error.message.includes("Database error saving new user")
+          ? "That username may already be taken. Please choose another."
+          : result.error.message
+      );
       setLoading(false);
       return;
     }
@@ -108,6 +124,36 @@ export default function AuthForm({
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        {mode === "signup" && (
+          <label className="block text-sm font-semibold text-white/75">
+            Username
+            <div className="auth-input mt-2 flex items-center rounded-2xl px-4 transition focus-within:ring-2 focus-within:ring-white/20">
+              <span className="text-white/35">/@</span>
+              <input
+                required
+                minLength={3}
+                maxLength={24}
+                pattern="[a-zA-Z0-9_]+"
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={username}
+                onChange={(event) =>
+                  setUsername(
+                    event.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase()
+                  )
+                }
+                spellCheck={false}
+                aria-describedby="username-help"
+                className="w-full bg-transparent px-2 py-3 outline-none placeholder:text-white/25"
+                placeholder="yourname"
+              />
+            </div>
+            <span id="username-help" className="mt-1 block text-xs font-normal text-white/40">
+              3–24 letters, numbers, or underscores. This will be your profile URL.
+            </span>
+          </label>
+        )}
+
         <label className="block text-sm font-semibold text-white/75">
           Email
           <input

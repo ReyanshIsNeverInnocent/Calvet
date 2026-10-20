@@ -49,7 +49,7 @@ The SQL files in `supabase/migrations` are versioned database changes. They do
 not run automatically just because they are in this repository.
 
 For a **new Supabase project**, open **SQL Editor** and run each migration file
-in numeric order (`001` through `006`). You can also
+in numeric order (`001` through `007`). You can also
 apply them with the Supabase CLI if you have linked the project.
 
 The application chrome (homepage, login, and dashboard) uses dark mode. Each
@@ -64,14 +64,17 @@ appearance settings. Run it once on an existing project to update the default
 for new profiles. Migration `005` adds free built-in username effects while
 preserving the rest of each user's appearance. Run each new migration once on
 an existing project. Migration `006` updates the default profile name and
-signup trigger for Calvet. Do not rerun `001_initial.sql` on an already-set-up
-database.
+signup trigger for Calvet. Migration `007` uses the username selected at signup
+and leaves new provider sign-ins without a username on the username setup page.
+Run each new migration once on an existing project. Do not rerun
+`001_initial.sql` on an already-set-up database.
 
 Afterward, confirm the `profiles`, `links`, `social_links`, and `projects` tables
 exist and keep Row Level Security enabled.
 
-New accounts receive a Calvet profile automatically. Their initial username has a
-short generated suffix; users can change it in the dashboard.
+Email signups choose a username before creating an account. Provider sign-ins
+choose one after authentication if they do not already have a profile. Usernames
+must be unique and contain 3–24 letters, numbers, or underscores.
 
 If your existing project has only `001_initial.sql`, also run
 `002_permissions_and_profile_trigger.sql`; it grants Data API table privileges

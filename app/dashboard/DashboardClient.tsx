@@ -705,9 +705,17 @@ export default function DashboardClient({
                         <input
                           value={profile.username}
                           onChange={(event) =>
-                            updateProfile("username", event.target.value.toLowerCase())
+                            updateProfile(
+                              "username",
+                              event.target.value
+                                .replace(/[^a-zA-Z0-9_]/g, "")
+                                .toLowerCase()
+                            )
                           }
+                          pattern="[a-zA-Z0-9_]+"
                           maxLength={24}
+                          autoCapitalize="none"
+                          spellCheck={false}
                           className="w-full bg-transparent px-2 py-3 outline-none"
                         />
                       </div>
