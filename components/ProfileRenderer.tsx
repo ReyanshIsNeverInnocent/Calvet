@@ -14,11 +14,13 @@ import {
   Music2,
   Pause,
   Play,
+  SkipBack,
+  SkipForward,
   Volume2,
   VolumeX
 } from "lucide-react";
 import Image from "next/image";
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import UsernameEffect from "@/components/UsernameEffect";
 import { isHttpUrl } from "@/lib/music";
 import type { PublicProfileData } from "@/types/profile";
@@ -89,18 +91,39 @@ export default function ProfileRenderer({
       ? "0 18px 48px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.055)"
       : undefined
   };
-  const musicUrl =
-    appearance.musicMode === "upload" && isHttpUrl(appearance.musicUrl)
-      ? appearance.musicUrl
-      : null;
+  const musicTracks =
+    appearance.musicMode === "upload"
+      ? appearance.musicTracks.filter((track) => isHttpUrl(track.url))
+      : [];
   const audioRef = useRef<HTMLAudioElement>(null);
+  const resumeAfterTrackChange = useRef(false);
   const [entered, setEntered] = useState(preview);
+  const [activeTrackIndex, setActiveTrackIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const volumeBeforeMute = useRef(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackError, setPlaybackError] = useState(false);
+  const activeTrack = musicTracks[activeTrackIndex] ?? musicTracks[0];
+  const musicUrl = activeTrack?.url ?? null;
+
+  useEffect(() => {
+    if (!resumeAfterTrackChange.current) return;
+    resumeAfterTrackChange.current = false;
+    const audio = audioRef.current;
+    if (!audio) return;
+    void audio.play().then(
+      () => {
+        setPlaying(true);
+      },
+      () => {
+        setPlaying(false);
+        setPlaybackError(true);
+      }
+    );
+  }, [activeTrackIndex]);
 
   function syncAudioProgress(audio: HTMLAudioElement) {
     setCurrentTime(audio.currentTime);
@@ -146,6 +169,18 @@ export default function ProfileRenderer({
     }
     audio.pause();
     setPlaying(false);
+  }
+
+  async function changeTrack(index: number) {
+    if (musicTracks.length < 2) return;
+    const nextIndex = (index + musicTracks.length) % musicTracks.length;
+    setActiveTrackIndex(nextIndex);
+    setCurrentTime(0);
+    setDuration(0);
+    setPlaybackError(false);
+    if (entered && !preview) {
+      resumeAfterTrackChange.current = true;
+    }
   }
 
   function formatTime(time: number) {
@@ -288,7 +323,13 @@ export default function ProfileRenderer({
                     onCanPlay={(event) => syncAudioProgress(event.currentTarget)}
                     onPlay={() => setPlaying(true)}
                     onPause={() => setPlaying(false)}
-                    onEnded={() => setPlaying(false)}
+                    onEnded={() => {
+                      if (musicTracks.length > 1 && entered && !preview) {
+                        void changeTrack(activeTrackIndex + 1);
+                      } else {
+                        setPlaying(false);
+                      }
+                    }}
                   >
                     Your browser does not support audio playback.
                   </audio>
@@ -296,9 +337,9 @@ export default function ProfileRenderer({
                     <div
                       className={`profile-music-art relative h-14 w-14 shrink-0 overflow-hidden rounded-xl ${playing ? "is-playing" : ""}`}
                     >
-                      {appearance.musicCoverUrl ? (
+                      {activeTrack?.coverUrl ? (
                         <Image
-                          src={appearance.musicCoverUrl}
+                          src={activeTrack.coverUrl}
                           alt=""
                           fill
                           unoptimized
@@ -318,17 +359,31 @@ export default function ProfileRenderer({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold tracking-tight">
-                        {appearance.musicTitle || "on repeat"}
+                        {activeTrack?.title || "on repeat"}
                       </p>
                       <p className="mt-1 truncate text-xs text-white/50">
-                        {appearance.musicArtist || profile.display_name}
+                        {activeTrack?.artist || profile.display_name}
                       </p>
+                      {musicTracks.length > 1 && (
+                        <p className="mt-1 text-[10px] text-white/35">
+                          {activeTrackIndex + 1} of {musicTracks.length}
+                        </p>
+                      )}
                       {playbackError && (
                         <p className="mt-1 text-[11px] text-white/55">
                           Tap play to start the track.
                         </p>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      aria-label="Previous song"
+                      disabled={musicTracks.length < 2 || preview}
+                      onClick={() => void changeTrack(activeTrackIndex - 1)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-30"
+                    >
+                      <SkipBack size={16} fill="currentColor" />
+                    </button>
                     <button
                       type="button"
                       aria-label={playing ? "Pause music" : "Play music"}
@@ -338,6 +393,15 @@ export default function ProfileRenderer({
                       style={{ backgroundColor: appearance.accentColor }}
                     >
                       {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Next song"
+                      disabled={musicTracks.length < 2 || preview}
+                      onClick={() => void changeTrack(activeTrackIndex + 1)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-30"
+                    >
+                      <SkipForward size={16} fill="currentColor" />
                     </button>
                   </div>
                   <div className="mt-3 flex items-center gap-2.5 px-1">
@@ -383,6 +447,9 @@ export default function ProfileRenderer({
                         onInput={(event) => {
                           const nextVolume = Number(event.currentTarget.value);
                           setVolume(nextVolume);
+                          if (nextVolume > 0) {
+                            volumeBeforeMute.current = nextVolume;
+                          }
                           setMuted(nextVolume === 0);
                           if (audioRef.current) {
                             audioRef.current.volume = nextVolume;
@@ -401,7 +468,13 @@ export default function ProfileRenderer({
                         onClick={() => {
                           const nextMuted = !muted;
                           setMuted(nextMuted);
-                          if (audioRef.current) audioRef.current.muted = nextMuted;
+                          if (audioRef.current) {
+                            if (!nextMuted && volume === 0) {
+                              setVolume(volumeBeforeMute.current);
+                              audioRef.current.volume = volumeBeforeMute.current;
+                            }
+                            audioRef.current.muted = nextMuted;
+                          }
                         }}
                         disabled={preview}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white disabled:cursor-default"

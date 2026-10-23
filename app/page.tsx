@@ -32,7 +32,7 @@ export default function HomePage() {
             Explore
           </Link>
           <Link
-            href="/auth/login"
+            href="/make"
             className="home-create-link whitespace-nowrap"
           >
             Make yours <ArrowUpRight size={15} />
@@ -58,7 +58,7 @@ export default function HomePage() {
             have played 47 times today. Make it yours and make it weird.
           </p>
           <div className="home-actions">
-            <Link href="/auth/login" className="home-main-cta">
+            <Link href="/make" className="home-main-cta">
               Make your page <ArrowUpRight size={17} />
             </Link>
             <Link href="/demo" className="home-demo-link">

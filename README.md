@@ -17,15 +17,17 @@ the profile's reduced-motion setting and the operating system preference; the
 live preview appears below the editor in a wide landscape frame. Profile and
 appearance edits save automatically after a short pause, while link and project
 changes continue to save as they are made.
-Profiles can add a music player by uploading a local audio file. Embedded title,
-artist, and cover metadata are used when available. The title and artist can be
-edited, and an optional cover image can replace embedded artwork. Uploaded audio
-and cover images use a public Supabase Storage bucket so they can display on
-public profiles. Public profiles open with a customizable click-to-enter screen.
+Profiles can add up to three local audio tracks, reorder them, and navigate
+between them with the profile player. The player can also be hidden without
+removing tracks. Embedded title, artist, and cover metadata are used when
+available. Track titles and artists can be edited, and an optional cover image
+can replace embedded artwork. Uploaded audio and cover images use a public
+Supabase Storage bucket so they can display on public profiles. Public profiles
+open with a customizable click-to-enter screen.
 Choose a soft spotlight, glitch, sparkles, aurora, snow, or rain effect for the
 screen. That first click starts the track when music is set, subject to browser
-audio autoplay rules. The player uses custom play, pause, seek, mute, and
-hover-to-adjust volume controls.
+audio autoplay rules. The player uses custom previous, play/pause, next, seek,
+mute, and hover-to-adjust volume controls.
 
 ## Requirements
 

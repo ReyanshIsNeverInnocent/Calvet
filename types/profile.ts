@@ -17,6 +17,14 @@ export const USERNAME_EFFECTS = [
   "hennessy-shimmer"
 ] as const;
 
+export type MusicTrack = {
+  id: string;
+  url: string;
+  title: string;
+  artist: string;
+  coverUrl: string;
+};
+
 export type Appearance = {
   theme: "dark";
   accentColor: string;
@@ -38,6 +46,7 @@ export type Appearance = {
   musicTitle: string;
   musicArtist: string;
   musicCoverUrl: string;
+  musicTracks: MusicTrack[];
   enterText: string;
   enterEffect:
     | "none"

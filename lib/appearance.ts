@@ -21,6 +21,7 @@ export const defaultAppearance: Appearance = {
   musicTitle: "",
   musicArtist: "",
   musicCoverUrl: "",
+  musicTracks: [],
   enterText: "click to enter",
   enterEffect: "spotlight"
 };
@@ -41,6 +42,35 @@ export function normalizeUsernameEffect(
 
 export function getAppearance(value: Partial<Appearance> | null | undefined): Appearance {
   const appearance = { ...defaultAppearance, ...value, theme: "dark" as const };
+  const tracks = Array.isArray(value?.musicTracks)
+    ? value.musicTracks
+        .filter(
+          (track) =>
+            track &&
+            typeof track.id === "string" &&
+            typeof track.url === "string" &&
+            typeof track.title === "string" &&
+            typeof track.artist === "string" &&
+            typeof track.coverUrl === "string"
+        )
+        .slice(0, 3)
+    : [];
+  const normalizedTracks =
+    tracks.length > 0
+      ? tracks
+      : !Array.isArray(value?.musicTracks) &&
+          appearance.musicMode === "upload" &&
+          appearance.musicUrl
+        ? [
+            {
+              id: "legacy-track",
+              url: appearance.musicUrl,
+              title: appearance.musicTitle || "on repeat",
+              artist: appearance.musicArtist || "",
+              coverUrl: appearance.musicCoverUrl || ""
+            }
+          ]
+        : [];
 
   return {
     ...appearance,
@@ -68,6 +98,7 @@ export function getAppearance(value: Partial<Appearance> | null | undefined): Ap
       typeof appearance.musicArtist === "string" ? appearance.musicArtist : "",
     musicCoverUrl:
       typeof appearance.musicCoverUrl === "string" ? appearance.musicCoverUrl : "",
+    musicTracks: normalizedTracks,
     enterText:
       typeof appearance.enterText === "string" ? appearance.enterText : defaultAppearance.enterText,
     enterEffect: [

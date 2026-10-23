@@ -47,6 +47,17 @@ export const profileSchema = z.object({
     musicTitle: z.string().trim().max(120),
     musicArtist: z.string().trim().max(120),
     musicCoverUrl: z.string().max(2048),
+    musicTracks: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(100),
+          url: z.string().url().max(2048),
+          title: z.string().trim().max(120),
+          artist: z.string().trim().max(120),
+          coverUrl: z.string().max(2048)
+        })
+      )
+      .max(3),
     enterText: z.string().trim().min(1).max(60),
     enterEffect: z.enum([
       "none",
