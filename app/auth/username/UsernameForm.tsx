@@ -54,7 +54,7 @@ export default function UsernameForm({
     <main className="auth-page relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-12 text-[#f5f3fa]">
       <div className="auth-panel w-full max-w-md rounded-[2rem] border border-white/[0.09] p-7 sm:p-9">
         <p className="brand-mark text-sm font-black tracking-[-0.06em]">
-          calvet<span className="brand-star">✳</span>
+          calvet
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em]">
           Choose your username.

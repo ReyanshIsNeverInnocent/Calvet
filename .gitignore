@@ -21,6 +21,9 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 
+# Local audio test files
+*.mp3
+
 # TypeScript
 *.tsbuildinfo
 

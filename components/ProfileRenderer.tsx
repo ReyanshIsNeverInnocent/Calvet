@@ -1,3 +1,5 @@
+"use client";
+
 import {
   SiGithub,
   SiInstagram,
@@ -5,10 +7,20 @@ import {
   SiX,
   SiYoutube
 } from "@icons-pack/react-simple-icons";
-import { ArrowUpRight, BriefcaseBusiness, Link2, Music2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  BriefcaseBusiness,
+  Link2,
+  Music2,
+  Pause,
+  Play,
+  Volume2,
+  VolumeX
+} from "lucide-react";
 import Image from "next/image";
-import type { CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import UsernameEffect from "@/components/UsernameEffect";
+import { isHttpUrl } from "@/lib/music";
 import type { PublicProfileData } from "@/types/profile";
 
 function ProfileIcon({ name, size = 18 }: { name: string; size?: number }) {
@@ -77,6 +89,71 @@ export default function ProfileRenderer({
       ? "0 18px 48px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.055)"
       : undefined
   };
+  const musicUrl =
+    appearance.musicMode === "upload" && isHttpUrl(appearance.musicUrl)
+      ? appearance.musicUrl
+      : null;
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [entered, setEntered] = useState(preview);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playbackError, setPlaybackError] = useState(false);
+
+  function syncAudioProgress(audio: HTMLAudioElement) {
+    setCurrentTime(audio.currentTime);
+
+    let nextDuration = audio.duration;
+    if (!Number.isFinite(nextDuration) || nextDuration <= 0) {
+      const lastSeekableRange = audio.seekable.length - 1;
+      nextDuration =
+        lastSeekableRange >= 0
+          ? audio.seekable.end(lastSeekableRange)
+          : 0;
+    }
+    if (Number.isFinite(nextDuration) && nextDuration > 0) {
+      setDuration(nextDuration);
+    }
+  }
+
+  async function startMusic() {
+    const audio = audioRef.current;
+    if (!audio || preview) return;
+
+    setPlaybackError(false);
+    try {
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+      setPlaybackError(true);
+    }
+  }
+
+  async function enterProfile() {
+    setEntered(true);
+    if (musicUrl) await startMusic();
+  }
+
+  async function toggleMusic() {
+    const audio = audioRef.current;
+    if (!audio || preview) return;
+    if (audio.paused) {
+      await startMusic();
+      return;
+    }
+    audio.pause();
+    setPlaying(false);
+  }
+
+  function formatTime(time: number) {
+    if (!Number.isFinite(time)) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  }
 
   return (
     <main
@@ -190,6 +267,150 @@ export default function ProfileRenderer({
                 <p className="mt-4 text-xs text-white/35">
                   {[profile.location, profile.pronouns].filter(Boolean).join(" · ")}
                 </p>
+              )}
+
+              {musicUrl && (
+                <section
+                  className="profile-music mx-auto mt-7 max-w-md rounded-[1.4rem] border border-white/[0.1] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,.26)]"
+                  style={{
+                    background: `linear-gradient(135deg, color-mix(in srgb, ${appearance.accentColor} 13%, #111116), rgba(12,12,17,.92))`,
+                    borderColor: `${appearance.accentColor}45`
+                  }}
+                  aria-label="Music player"
+                >
+                  <audio
+                    ref={audioRef}
+                    preload="auto"
+                    src={musicUrl}
+                    onTimeUpdate={(event) => syncAudioProgress(event.currentTarget)}
+                    onLoadedMetadata={(event) => syncAudioProgress(event.currentTarget)}
+                    onDurationChange={(event) => syncAudioProgress(event.currentTarget)}
+                    onCanPlay={(event) => syncAudioProgress(event.currentTarget)}
+                    onPlay={() => setPlaying(true)}
+                    onPause={() => setPlaying(false)}
+                    onEnded={() => setPlaying(false)}
+                  >
+                    Your browser does not support audio playback.
+                  </audio>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`profile-music-art relative h-14 w-14 shrink-0 overflow-hidden rounded-xl ${playing ? "is-playing" : ""}`}
+                    >
+                      {appearance.musicCoverUrl ? (
+                        <Image
+                          src={appearance.musicCoverUrl}
+                          alt=""
+                          fill
+                          unoptimized
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span
+                          className="flex h-full w-full items-center justify-center"
+                          style={{
+                            background: `linear-gradient(145deg, ${appearance.accentColor}88, #17131f)`,
+                            color: appearance.textColor
+                          }}
+                        >
+                          <Music2 size={22} />
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold tracking-tight">
+                        {appearance.musicTitle || "on repeat"}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-white/50">
+                        {appearance.musicArtist || profile.display_name}
+                      </p>
+                      {playbackError && (
+                        <p className="mt-1 text-[11px] text-white/55">
+                          Tap play to start the track.
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={playing ? "Pause music" : "Play music"}
+                      onClick={() => void toggleMusic()}
+                      disabled={preview}
+                      className="profile-music-play flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-black transition hover:scale-105 disabled:cursor-default"
+                      style={{ backgroundColor: appearance.accentColor }}
+                    >
+                      {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+                    </button>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2.5 px-1">
+                    <span className="w-8 text-right font-mono text-[10px] tabular-nums text-white/45">
+                      {formatTime(currentTime)}
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={duration}
+                      step={0.01}
+                      value={Math.min(currentTime, duration || 0)}
+                      aria-label="Seek through song"
+                      disabled={preview || !duration}
+                      onInput={(event) => {
+                        const nextTime = Number(event.currentTarget.value);
+                        if (audioRef.current) audioRef.current.currentTime = nextTime;
+                        setCurrentTime(nextTime);
+                      }}
+                      onChange={(event) => {
+                        const nextTime = Number(event.currentTarget.value);
+                        if (audioRef.current) audioRef.current.currentTime = nextTime;
+                        setCurrentTime(nextTime);
+                      }}
+                      className="profile-music-seek min-w-0 flex-1"
+                      style={{
+                        "--music-accent": appearance.accentColor,
+                        "--music-progress": `${duration ? (currentTime / duration) * 100 : 0}%`
+                      } as CSSProperties}
+                    />
+                    <span className="w-8 font-mono text-[10px] tabular-nums text-white/45">
+                      {formatTime(duration)}
+                    </span>
+                    <div className="profile-volume-control group relative flex shrink-0 items-center">
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={muted ? 0 : volume}
+                        aria-label="Music volume"
+                        disabled={preview}
+                        onInput={(event) => {
+                          const nextVolume = Number(event.currentTarget.value);
+                          setVolume(nextVolume);
+                          setMuted(nextVolume === 0);
+                          if (audioRef.current) {
+                            audioRef.current.volume = nextVolume;
+                            audioRef.current.muted = nextVolume === 0;
+                          }
+                        }}
+                        className="profile-volume-slider"
+                        style={{
+                          "--volume-progress": `${(muted ? 0 : volume) * 100}%`
+                        } as CSSProperties}
+                      />
+                      <button
+                        type="button"
+                        aria-label={muted ? "Unmute music" : "Mute music"}
+                        aria-pressed={muted}
+                        onClick={() => {
+                          const nextMuted = !muted;
+                          setMuted(nextMuted);
+                          if (audioRef.current) audioRef.current.muted = nextMuted;
+                        }}
+                        disabled={preview}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white disabled:cursor-default"
+                      >
+                        {muted || volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                </section>
               )}
 
               {socials.length > 0 && (
@@ -322,6 +543,27 @@ export default function ProfileRenderer({
         </article>
 
       </div>
+      {!preview && !entered && (
+        <button
+          type="button"
+          onClick={() => void enterProfile()}
+          className={`profile-enter-screen profile-enter-${appearance.enterEffect} fixed inset-0 z-50 flex min-h-[100svh] w-full flex-col items-center justify-center overflow-hidden px-6 text-center`}
+          style={{
+            color: appearance.textColor,
+            backgroundColor: `color-mix(in srgb, ${appearance.backgroundColor} 72%, transparent)`,
+            backdropFilter: "blur(2px)",
+            "--enter-accent": appearance.accentColor
+          } as CSSProperties}
+          aria-label={appearance.enterText || "Click to enter"}
+        >
+          <span className="profile-enter-orb" aria-hidden="true" />
+          <span className="relative z-10">
+            <span className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              {appearance.enterText}
+            </span>
+          </span>
+        </button>
+      )}
     </main>
   );
 }

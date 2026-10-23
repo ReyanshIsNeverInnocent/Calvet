@@ -3,11 +3,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Calvet — make the internet feel like yours",
+    default: "Calvet | your page, your rules",
     template: "%s · Calvet"
   },
   description:
-    "One page for your links, socials, projects, and whatever you want people to find. Built to be yours.",
+    "A personal page for your links, music, interests, and whatever you want to share.",
   icons: {
     icon: "/CalvetLogo.jpg",
     apple: "/CalvetLogo.jpg"

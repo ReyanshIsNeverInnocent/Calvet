@@ -41,7 +41,22 @@ export const profileSchema = z.object({
     backgroundEffect: z.enum(["none", "aurora", "grid"]),
     cardEffect: z.enum(["none", "glow", "gradient"]),
     usernameEffect: z.enum(USERNAME_EFFECTS),
-    reducedMotion: z.boolean()
+    reducedMotion: z.boolean(),
+    musicMode: z.enum(["off", "upload"]),
+    musicUrl: z.string().max(2048),
+    musicTitle: z.string().trim().max(120),
+    musicArtist: z.string().trim().max(120),
+    musicCoverUrl: z.string().max(2048),
+    enterText: z.string().trim().min(1).max(60),
+    enterEffect: z.enum([
+      "none",
+      "spotlight",
+      "glitch",
+      "sparkles",
+      "aurora",
+      "snow",
+      "rain"
+    ])
   })
 });
 

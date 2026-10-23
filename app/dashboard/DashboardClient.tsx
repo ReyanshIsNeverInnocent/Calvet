@@ -2,19 +2,28 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent
+} from "react";
 import {
   ArrowDown,
   ArrowUp,
   ExternalLink,
   Eye,
   Link2,
+  Music2,
   Palette,
   Plus,
   Settings,
   Trash2,
   UserRound
 } from "lucide-react";
+import { read } from "jsmediatags/dist/jsmediatags.min.js";
 import { createClient } from "@/lib/supabase/browser";
 import { linkSchema, profileSchema, urlSchema } from "@/lib/validation";
 import { getAppearance } from "@/lib/appearance";
@@ -40,7 +49,7 @@ type Props = {
   initialProjects: Project[];
 };
 
-type EditorSection = "profile" | "appearance" | "links" | "settings";
+type EditorSection = "profile" | "appearance" | "music" | "links" | "settings";
 
 const usernameEffectLabels: Record<Appearance["usernameEffect"], string> = {
   none: "None",
@@ -66,6 +75,53 @@ const usernameEffectOptions = USERNAME_EFFECTS.map((value) => ({
   label: usernameEffectLabels[value],
   sample: value === "shuffle" ? "Calve7" : "Calvet"
 }));
+
+type AudioMetadata = {
+  title: string;
+  artist: string;
+  cover?: Blob;
+};
+
+function createUploadId() {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function getMusicStorageErrorMessage(error: { message: string }) {
+  if (error.message.toLowerCase().includes("bucket not found")) {
+    return 'The "profile-music" storage bucket is missing. Run supabase/migrations/008_profile_music.sql in the SQL Editor for the Supabase project configured in .env.local, then try again.';
+  }
+
+  return error.message;
+}
+
+function readAudioMetadata(file: File): Promise<AudioMetadata> {
+  return new Promise((resolve) => {
+    try {
+      read(file, {
+        onSuccess: ({ tags }) => {
+          try {
+            const picture = tags.picture;
+            const cover = picture
+              ? new Blob([new Uint8Array(picture.data)], { type: picture.format })
+              : undefined;
+
+            resolve({
+              title: tags.title?.trim() ?? "",
+              artist: tags.artist?.trim() ?? "",
+              cover
+            });
+          } catch {
+            resolve({ title: tags.title?.trim() ?? "", artist: tags.artist?.trim() ?? "" });
+          }
+        },
+        onError: () => resolve({ title: "", artist: "" })
+      });
+    } catch {
+      resolve({ title: "", artist: "" });
+    }
+  });
+}
 
 export default function DashboardClient({
   userEmail,
@@ -228,6 +284,169 @@ export default function DashboardClient({
     setLinkTitleInput("");
     setLinkIconInput("link");
     setNotice("Link added.");
+  }
+
+  async function uploadMusicFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      setNotice("Audio files must be 15 MB or smaller.");
+      return;
+    }
+
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    const contentTypes: Record<string, string> = {
+      mp3: "audio/mpeg",
+      m4a: "audio/mp4",
+      aac: "audio/aac",
+      ogg: "audio/ogg",
+      wav: "audio/wav",
+      webm: "audio/webm"
+    };
+    if (
+      !extension ||
+      !contentTypes[extension] ||
+      (file.type && !file.type.startsWith("audio/"))
+    ) {
+      setNotice("Use an MP3, M4A, AAC, OGG, WAV, or WebM audio file.");
+      return;
+    }
+
+    setNotice("Reading song info...");
+    const metadata = await readAudioMetadata(file);
+
+    try {
+      setNotice("Uploading audio...");
+      const path = `${profile.user_id}/${createUploadId()}.${extension}`;
+      const { data, error } = await supabase.storage
+        .from("profile-music")
+        .upload(path, file, {
+          cacheControl: "31536000",
+          contentType: contentTypes[extension],
+          upsert: false
+        });
+
+      if (error) {
+        setNotice(`Could not upload audio: ${getMusicStorageErrorMessage(error)}`);
+        return;
+      }
+
+      const { data: publicUrl } = supabase.storage
+        .from("profile-music")
+        .getPublicUrl(data.path);
+      let musicCoverUrl = "";
+      let uploadNotice = "Audio uploaded. Your profile is saving.";
+
+      if (metadata.cover) {
+        const coverTypes: Record<string, string> = {
+          "image/jpeg": "jpg",
+          "image/jpg": "jpg",
+          "image/png": "png",
+          "image/webp": "webp"
+        };
+        const coverType = coverTypes[metadata.cover.type.toLowerCase()];
+
+        if (metadata.cover.size > 5 * 1024 * 1024) {
+          uploadNotice = "Audio uploaded. Its embedded cover is over 5 MB, so choose a smaller one if you want cover art.";
+        } else if (coverType) {
+          const coverContentType =
+            metadata.cover.type.toLowerCase() === "image/jpg"
+              ? "image/jpeg"
+              : metadata.cover.type.toLowerCase();
+          const coverExtension = coverType;
+          const coverPath = `${profile.user_id}/${createUploadId()}.${coverExtension}`;
+          try {
+            const { data: coverData, error: coverError } = await supabase.storage
+              .from("profile-music")
+              .upload(coverPath, metadata.cover, {
+                cacheControl: "31536000",
+                contentType: coverContentType,
+                upsert: false
+              });
+
+            if (coverError) {
+              uploadNotice = `Audio uploaded, but its cover could not be uploaded: ${getMusicStorageErrorMessage(coverError)}`;
+            } else {
+              musicCoverUrl = supabase.storage
+                .from("profile-music")
+                .getPublicUrl(coverData.path).data.publicUrl;
+            }
+          } catch (error) {
+            uploadNotice = `Audio uploaded, but its cover could not be uploaded: ${error instanceof Error ? error.message : "An unexpected error occurred."}`;
+          }
+        } else {
+          uploadNotice = "Audio uploaded. Its embedded cover format is unsupported. Choose a JPG, PNG, or WebP image to add cover art.";
+        }
+      }
+
+      setProfile((current) => ({
+        ...current,
+        appearance: {
+          ...current.appearance,
+          musicMode: "upload",
+          musicUrl: publicUrl.publicUrl,
+          musicTitle:
+            metadata.title || file.name.replace(/\.[^/.]+$/, ""),
+          musicArtist: metadata.artist,
+          musicCoverUrl
+        }
+      }));
+      setNotice(uploadNotice);
+    } catch (error) {
+      setNotice(
+        `Could not upload audio: ${error instanceof Error ? error.message : "An unexpected error occurred."}`
+      );
+    }
+  }
+
+  async function uploadMusicCover(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const coverExtensions: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp"
+    };
+    const extension = coverExtensions[file.type.toLowerCase()];
+    if (!extension) {
+      setNotice("Choose a JPG, PNG, or WebP image for the cover.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setNotice("Cover images must be 5 MB or smaller.");
+      return;
+    }
+
+    try {
+      setNotice("Uploading cover...");
+      const path = `${profile.user_id}/${createUploadId()}.${extension}`;
+      const { data, error } = await supabase.storage
+        .from("profile-music")
+        .upload(path, file, {
+          cacheControl: "31536000",
+          contentType: file.type,
+          upsert: false
+        });
+
+      if (error) {
+        setNotice(`Could not upload cover: ${getMusicStorageErrorMessage(error)}`);
+        return;
+      }
+
+      const { data: publicUrl } = supabase.storage
+        .from("profile-music")
+        .getPublicUrl(data.path);
+      updateAppearance("musicCoverUrl", publicUrl.publicUrl);
+      setNotice("Cover uploaded. Your profile is saving.");
+    } catch (error) {
+      setNotice(
+        `Could not upload cover: ${error instanceof Error ? error.message : "An unexpected error occurred."}`
+      );
+    }
   }
 
   async function updateLink(
@@ -582,6 +801,7 @@ export default function DashboardClient({
   const sections: { id: EditorSection; label: string; icon: typeof UserRound }[] = [
     { id: "profile", label: "Profile", icon: UserRound },
     { id: "appearance", label: "Appearance", icon: Palette },
+    { id: "music", label: "Music", icon: Music2 },
     { id: "links", label: "Links", icon: Link2 },
     { id: "settings", label: "Settings", icon: Settings }
   ];
@@ -606,7 +826,7 @@ export default function DashboardClient({
               className="rounded-lg"
             />
             <span>
-              calvet<span className="brand-star">✳</span>
+              calvet
             </span>
           </Link>
 
@@ -976,6 +1196,50 @@ export default function DashboardClient({
                     </select>
                   </label>
 
+                  <fieldset className="rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4 sm:col-span-2">
+                    <legend className="px-1 text-sm font-semibold">
+                      Click to enter
+                    </legend>
+                    <p className="mt-1 text-xs font-normal leading-5 text-black/50">
+                      Visitors click this screen to open your page. Their click can start your song too.
+                    </p>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm font-semibold">
+                        Enter text
+                        <input
+                          value={profile.appearance.enterText ?? ""}
+                          maxLength={60}
+                          onChange={(event) =>
+                            updateAppearance("enterText", event.target.value)
+                          }
+                          placeholder="click to enter"
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3 outline-none focus:border-violet"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Entrance effect
+                        <select
+                          value={profile.appearance.enterEffect}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "enterEffect",
+                              event.target.value as Appearance["enterEffect"]
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="none">Clean fade</option>
+                          <option value="spotlight">Soft spotlight</option>
+                          <option value="glitch">Glitch flash</option>
+                          <option value="sparkles">Floating sparkles</option>
+                          <option value="aurora">Drifting aurora</option>
+                          <option value="snow">Slow snowfall</option>
+                          <option value="rain">Night rain</option>
+                        </select>
+                      </label>
+                    </div>
+                  </fieldset>
+
                   <fieldset className="sm:col-span-2">
                     <legend className="text-sm font-semibold">
                       Username effects
@@ -1071,6 +1335,109 @@ export default function DashboardClient({
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {active === "music" && (
+            <div className="space-y-6">
+              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+                <h2 className="font-serif text-2xl">Put something on</h2>
+                <p className="mt-1 text-sm text-[#77776d]">
+                  Add a track to your page. The first click to enter starts playback when a track is set.
+                </p>
+
+                <div className="mt-6">
+                  <label className="flex max-w-xl cursor-pointer items-center gap-3 rounded-2xl border border-black/10 p-4 transition hover:border-violet">
+                    <Music2 size={20} className="shrink-0 text-violet" />
+                    <span>
+                      <span className="block text-sm font-semibold">Choose an audio file</span>
+                      <span className="mt-1 block text-xs font-normal text-black/50">
+                        MP3, M4A, AAC, OGG, WAV, or WebM, up to 15 MB
+                      </span>
+                    </span>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      onChange={uploadMusicFile}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+
+                {profile.appearance.musicMode !== "off" && (
+                  <div className="mt-6 grid gap-4 border-t border-black/10 pt-5 sm:grid-cols-2">
+                    <label className="text-sm font-semibold">
+                      Track or playlist name
+                      <input
+                        value={profile.appearance.musicTitle}
+                        maxLength={120}
+                        onChange={(event) =>
+                          updateAppearance("musicTitle", event.target.value)
+                        }
+                        placeholder="What’s on repeat?"
+                        className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 outline-none focus:border-violet"
+                      />
+                    </label>
+                    <label className="text-sm font-semibold">
+                      Artist or extra info
+                      <input
+                        value={profile.appearance.musicArtist}
+                        maxLength={120}
+                        onChange={(event) =>
+                          updateAppearance("musicArtist", event.target.value)
+                        }
+                        placeholder="Optional"
+                        className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 outline-none focus:border-violet"
+                      />
+                    </label>
+                    <div className="sm:col-span-2">
+                      <span className="text-sm font-semibold">Song cover</span>
+                      <div className="mt-2 flex items-center gap-4">
+                        {profile.appearance.musicCoverUrl && (
+                          <Image
+                            src={profile.appearance.musicCoverUrl}
+                            alt="Current song cover"
+                            width={64}
+                            height={64}
+                            unoptimized
+                            className="h-16 w-16 rounded-xl object-cover"
+                          />
+                        )}
+                        <label className="cursor-pointer rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:border-violet">
+                          Choose cover image
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={uploadMusicCover}
+                            className="sr-only"
+                          />
+                        </label>
+                        <span className="text-xs font-normal text-black/50">
+                          Embedded art is used automatically. JPG, PNG, or WebP up to 5 MB.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateAppearance("musicMode", "off");
+                        updateAppearance("musicUrl", "");
+                        updateAppearance("musicTitle", "");
+                        updateAppearance("musicArtist", "");
+                        updateAppearance("musicCoverUrl", "");
+                        setNotice("Music player removed. Your profile is saving.");
+                      }}
+                      className="justify-self-start rounded-xl border border-black/10 px-4 py-2.5 text-sm font-semibold text-black/65 hover:border-red-400 hover:text-red-500 sm:col-span-2"
+                    >
+                      Remove music player
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <p className="px-2 text-xs leading-5 text-white/45">
+                Uploaded tracks are publicly playable when your profile is public. Only upload music you have permission to share.
+              </p>
             </div>
           )}
 

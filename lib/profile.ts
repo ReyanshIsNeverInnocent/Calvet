@@ -6,25 +6,25 @@ export const demoProfile: PublicProfileData = {
   profile: {
     id: "hennessy-demo-profile",
     username: "demo",
-    display_name: "Nova Chen",
-    bio: "Digital maker, late-night thinker, and collector of tiny beautiful things.",
+    display_name: "nova",
+    bio: "collecting playlists, making silly little things, probably avoiding my homework",
     avatar_url: "",
     banner_url: "",
-    location: "Brooklyn, NY",
-    pronouns: "they/them",
-    status: "",
-    mode: "portfolio",
+    location: "",
+    pronouns: "",
+    status: "currently vibing",
+    mode: "personal",
     is_public: true,
     appearance: {
       ...defaultAppearance,
-      accentColor: "#a78bfa",
-      textColor: "#281a37",
-      backgroundColor: "#e8ddf7",
-      cardOpacity: 0.88,
-      animation: "float",
+      accentColor: "#b49aff",
+      textColor: "#f4f1fa",
+      backgroundColor: "#0d0b12",
+      cardOpacity: 0.82,
+      animation: "playful",
       backgroundEffect: "aurora",
       cardEffect: "glow",
-      usernameEffect: "particles-blue"
+      usernameEffect: "none"
     },
     created_at: "",
     updated_at: ""
@@ -33,9 +33,9 @@ export const demoProfile: PublicProfileData = {
     {
       id: "hennessy-demo-portfolio",
       profile_id: "hennessy-demo-profile",
-      title: "Portfolio",
+      title: "my corner",
       url: "https://example.com",
-      description: "Selected work and experiments",
+      description: "some things I made",
       icon: "link",
       position: 0,
       enabled: true
@@ -43,9 +43,9 @@ export const demoProfile: PublicProfileData = {
     {
       id: "hennessy-demo-listening",
       profile_id: "hennessy-demo-profile",
-      title: "Currently listening",
+      title: "on repeat",
       url: "https://open.spotify.com",
-      description: "A little soundtrack for the day",
+      description: "my current playlist",
       icon: "music",
       position: 1,
       enabled: true
@@ -65,11 +65,11 @@ export const demoProfile: PublicProfileData = {
     {
       id: "hennessy-demo-project",
       profile_id: "hennessy-demo-profile",
-      title: "Small Hours",
-      description: "A collection of little tools for more thoughtful days.",
+      title: "tiny game",
+      description: "a small thing I made while avoiding homework.",
       url: "https://example.com",
       image_url: "",
-      tags: ["Design", "Web"],
+      tags: ["indie game", "late night"],
       position: 0,
       enabled: true
     }

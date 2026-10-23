@@ -15,7 +15,14 @@ export const defaultAppearance: Appearance = {
   backgroundEffect: "none",
   cardEffect: "none",
   usernameEffect: "none",
-  reducedMotion: false
+  reducedMotion: false,
+  musicMode: "off",
+  musicUrl: "",
+  musicTitle: "",
+  musicArtist: "",
+  musicCoverUrl: "",
+  enterText: "click to enter",
+  enterEffect: "spotlight"
 };
 
 export function isHexColor(color: string): boolean {
@@ -50,6 +57,30 @@ export function getAppearance(value: Partial<Appearance> | null | undefined): Ap
     cardEffect: ["none", "glow", "gradient"].includes(appearance.cardEffect)
       ? appearance.cardEffect
       : defaultAppearance.cardEffect,
+    musicMode: ["off", "upload"].includes(appearance.musicMode)
+      ? appearance.musicMode
+      : defaultAppearance.musicMode,
+    musicUrl:
+      typeof appearance.musicUrl === "string" ? appearance.musicUrl : "",
+    musicTitle:
+      typeof appearance.musicTitle === "string" ? appearance.musicTitle : "",
+    musicArtist:
+      typeof appearance.musicArtist === "string" ? appearance.musicArtist : "",
+    musicCoverUrl:
+      typeof appearance.musicCoverUrl === "string" ? appearance.musicCoverUrl : "",
+    enterText:
+      typeof appearance.enterText === "string" ? appearance.enterText : defaultAppearance.enterText,
+    enterEffect: [
+      "none",
+      "spotlight",
+      "glitch",
+      "sparkles",
+      "aurora",
+      "snow",
+      "rain"
+    ].includes(appearance.enterEffect)
+      ? appearance.enterEffect
+      : defaultAppearance.enterEffect,
     usernameEffect: normalizeUsernameEffect(appearance.usernameEffect),
     backgroundColor: isHexColor(appearance.backgroundColor)
       ? appearance.backgroundColor

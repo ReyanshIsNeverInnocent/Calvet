@@ -17,6 +17,15 @@ the profile's reduced-motion setting and the operating system preference; the
 live preview appears below the editor in a wide landscape frame. Profile and
 appearance edits save automatically after a short pause, while link and project
 changes continue to save as they are made.
+Profiles can add a music player by uploading a local audio file. Embedded title,
+artist, and cover metadata are used when available. The title and artist can be
+edited, and an optional cover image can replace embedded artwork. Uploaded audio
+and cover images use a public Supabase Storage bucket so they can display on
+public profiles. Public profiles open with a customizable click-to-enter screen.
+Choose a soft spotlight, glitch, sparkles, aurora, snow, or rain effect for the
+screen. That first click starts the track when music is set, subject to browser
+audio autoplay rules. The player uses custom play, pause, seek, mute, and
+hover-to-adjust volume controls.
 
 ## Requirements
 
@@ -49,7 +58,7 @@ The SQL files in `supabase/migrations` are versioned database changes. They do
 not run automatically just because they are in this repository.
 
 For a **new Supabase project**, open **SQL Editor** and run each migration file
-in numeric order (`001` through `007`). You can also
+in numeric order (`001` through `009`). You can also
 apply them with the Supabase CLI if you have linked the project.
 
 The application chrome (homepage, login, and dashboard) uses dark mode. Each
@@ -66,7 +75,11 @@ preserving the rest of each user's appearance. Run each new migration once on
 an existing project. Migration `006` updates the default profile name and
 signup trigger for Calvet. Migration `007` uses the username selected at signup
 and leaves new provider sign-ins without a username on the username setup page.
-Run each new migration once on an existing project. Do not rerun
+Migration `008` creates the public profile music bucket with owner-only upload
+and delete access. Uploaded audio is accessible to anyone with its public file
+URL, so only upload music you have permission to share. Migration `009` allows
+JPG, PNG, and WebP cover images in that bucket. Run each new migration once on
+an existing project. Do not rerun
 `001_initial.sql` on an already-set-up database.
 
 Afterward, confirm the `profiles`, `links`, `social_links`, and `projects` tables

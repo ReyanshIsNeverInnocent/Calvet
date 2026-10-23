@@ -33,6 +33,20 @@ export type Appearance = {
   cardEffect: "none" | "glow" | "gradient";
   usernameEffect: (typeof USERNAME_EFFECTS)[number];
   reducedMotion: boolean;
+  musicMode: "off" | "upload";
+  musicUrl: string;
+  musicTitle: string;
+  musicArtist: string;
+  musicCoverUrl: string;
+  enterText: string;
+  enterEffect:
+    | "none"
+    | "spotlight"
+    | "glitch"
+    | "sparkles"
+    | "aurora"
+    | "snow"
+    | "rain";
 };
 
 export type Profile = {

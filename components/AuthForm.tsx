@@ -95,7 +95,7 @@ export default function AuthForm({
   return (
     <div className="auth-panel w-full max-w-md rounded-[2rem] border border-white/[0.09] p-7 sm:p-9">
       <div className="mb-7">
-        <p className="brand-mark text-sm font-black tracking-[-0.06em]">calvet<span className="brand-star">✳</span></p>
+        <p className="brand-mark text-sm font-black tracking-[-0.06em]">calvet</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#f5f3fa]">
           {mode === "login" ? "Welcome back." : "Create your page."}
         </h1>
