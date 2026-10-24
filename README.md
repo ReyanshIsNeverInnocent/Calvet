@@ -133,8 +133,24 @@ from public.profiles
 where username = 'example';
 ```
 
-Use `kind` values `verified`, `creator`, or `early`. Users cannot create or
-change badge rows through the app.
+Replace `example` with the account's username and change the `kind` and
+`label` to the badge you intend to award. Supported kinds are `verified`,
+`creator`, and `early`; each profile can have one badge of each kind. Run this
+as a trusted project administrator in **Supabase → SQL Editor**, after
+migration `011` has been applied. The badge then appears on the public profile
+and in the owner's Settings. To revoke it, run:
+
+```sql
+delete from public.profile_badges b
+using public.profiles p
+where b.profile_id = p.id
+  and p.username = 'example'
+  and b.kind = 'verified';
+```
+
+Only trusted administrators should issue `verified` badges. Users cannot create
+or change badge rows through the app; there is intentionally no self-service
+verification button.
 
 Email signups choose a username before creating an account. Provider sign-ins
 choose one after authentication if they do not already have a profile. Usernames

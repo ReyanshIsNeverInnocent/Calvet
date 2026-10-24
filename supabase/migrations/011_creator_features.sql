@@ -156,6 +156,7 @@ for each row execute function public.enforce_profile_media_limit();
 
 alter table public.profile_media enable row level security;
 
+revoke all on public.profile_media from anon, authenticated;
 grant select, insert, update, delete on public.profile_media to authenticated;
 grant select on public.profile_media to anon;
 

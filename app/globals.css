@@ -1128,17 +1128,103 @@ a {
   display: none;
 }
 
+.profile-music {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow: 0 16px 38px rgba(0,0,0,.2);
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.profile-music::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 8% 100%, color-mix(in srgb, var(--profile-accent-color) 22%, transparent), transparent 48%),
+    linear-gradient(112deg, rgba(255,255,255,.045), transparent 44%, rgba(255,255,255,.025));
+  content: "";
+  opacity: .7;
+  transition: opacity 240ms ease;
+}
+
+.profile-music.is-playing {
+  box-shadow:
+    0 18px 42px rgba(0,0,0,.25),
+    0 0 28px color-mix(in srgb, var(--profile-accent-color) 12%, transparent);
+}
+
+.profile-music.is-playing::before {
+  opacity: 1;
+}
+
+.profile-music-main {
+  position: relative;
+  z-index: 1;
+}
+
 .profile-music-art {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .32);
+  isolation: isolate;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .34);
+}
+
+.profile-music-art::after {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
 }
 
 .profile-music-art.is-playing img,
 .profile-music-art.is-playing > span {
-  animation: profile-music-art-pulse 3.2s ease-in-out infinite;
+  animation: profile-music-art-drift 7s ease-in-out infinite alternate;
+}
+
+.profile-music-art.is-playing img {
+  transform-origin: center;
+}
+
+.profile-music-equalizer {
+  display: inline-flex;
+  height: 11px;
+  align-items: center;
+  gap: 2px;
+}
+
+.profile-music-equalizer i {
+  width: 2px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--profile-accent-color);
+  opacity: .7;
+  animation: profile-music-equalize 900ms ease-in-out infinite alternate;
+}
+
+.profile-music-equalizer i:nth-child(2) {
+  height: 8px;
+  animation-delay: -450ms;
+}
+
+.profile-music-equalizer i:nth-child(3) {
+  height: 6px;
+  animation-delay: -250ms;
+}
+
+.profile-music:not(.is-playing) .profile-music-equalizer i {
+  animation-play-state: paused;
+  height: 3px;
 }
 
 .profile-music-play {
   box-shadow: 0 0 22px color-mix(in srgb, var(--profile-accent-color) 32%, transparent);
+  transition: box-shadow 220ms ease, transform 220ms cubic-bezier(.2,.8,.2,1);
+}
+
+.profile-music-play:hover:not(:disabled) {
+  box-shadow: 0 0 30px color-mix(in srgb, var(--profile-accent-color) 55%, transparent);
+  transform: scale(1.08);
 }
 
 .profile-music-seek {
@@ -1172,6 +1258,12 @@ a {
   border-radius: 50%;
   background: var(--music-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--music-accent) 20%, transparent);
+}
+
+.profile-music-seek:focus-visible,
+.profile-volume-slider:focus-visible {
+  outline: 2px solid var(--profile-accent-color);
+  outline-offset: 4px;
 }
 
 .profile-volume-control {
@@ -1352,8 +1444,14 @@ a {
   animation-duration: 2.7s;
 }
 
-@keyframes profile-music-art-pulse {
-  50% { transform: scale(.96); }
+@keyframes profile-music-art-drift {
+  from { transform: scale(1) rotate(-1.5deg); }
+  to { transform: scale(1.06) rotate(1.5deg); }
+}
+
+@keyframes profile-music-equalize {
+  from { transform: scaleY(.45); opacity: .55; }
+  to { transform: scaleY(1.1); opacity: 1; }
 }
 
 @keyframes profile-enter-fade-in {
@@ -1395,7 +1493,8 @@ a {
   .profile-enter-screen,
   .profile-enter-screen *,
   .profile-music-art.is-playing img,
-  .profile-music-art.is-playing > span {
+  .profile-music-art.is-playing > span,
+  .profile-music-equalizer i {
     animation: none !important;
   }
 }
@@ -1514,6 +1613,75 @@ a {
 
 .profile-panel {
   animation: panel-reveal 800ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.profile-detail-tooltip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.profile-detail-tooltip-trigger {
+  font: inherit;
+}
+
+.profile-detail-tooltip [tabindex="0"]:focus-visible {
+  outline: 2px solid var(--profile-accent-color);
+  outline-offset: 4px;
+}
+
+.profile-detail-tooltip-popover {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  min-width: max-content;
+  max-width: min(16rem, calc(100vw - 2rem));
+  padding: .4rem .7rem;
+  border: 1px solid color-mix(in srgb, var(--profile-accent-color) 28%, rgba(255,255,255,.14));
+  border-radius: .75rem;
+  background: color-mix(in srgb, #17151e 92%, var(--profile-accent-color));
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(0,0,0,.35);
+  font-size: .625rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 5px) scale(.96);
+  transform-origin: center bottom;
+  transition:
+    opacity 150ms ease,
+    transform 180ms cubic-bezier(.2,.8,.2,1),
+    visibility 180ms;
+}
+
+.profile-detail-tooltip-popover::after {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid color-mix(in srgb, var(--profile-accent-color) 28%, rgba(255,255,255,.14));
+  border-bottom: 1px solid color-mix(in srgb, var(--profile-accent-color) 28%, rgba(255,255,255,.14));
+  background: #17151e;
+  content: "";
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.profile-detail-tooltip:hover .profile-detail-tooltip-popover,
+.profile-detail-tooltip:focus-within .profile-detail-tooltip-popover {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-detail-tooltip-popover {
+    transition: none;
+  }
 }
 
 .profile-panel[data-layout="minimal"] .profile-identity > h1 {

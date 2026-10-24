@@ -391,20 +391,31 @@ export default function ProfileRenderer({
               )}
 
               {profile.status && (
-                <div
-                  aria-label={`Status: ${profile.status}`}
-                  title="Status"
-                  className="mx-auto mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs text-white/70"
-                >
+                <span className="profile-detail-tooltip mx-auto mt-3">
                   <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_12px_currentColor]"
-                    style={{
-                      backgroundColor: appearance.accentColor,
-                      color: appearance.accentColor
-                    }}
-                  />
-                  {profile.status}
-                </div>
+                    tabIndex={0}
+                    aria-label={`Status: ${profile.status}`}
+                    aria-describedby={`profile-status-tooltip-${profile.id}`}
+                    className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs text-white/70"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_12px_currentColor]"
+                      style={{
+                        backgroundColor: appearance.accentColor,
+                        color: appearance.accentColor
+                      }}
+                    />
+                    {profile.status}
+                  </span>
+                  <span
+                    id={`profile-status-tooltip-${profile.id}`}
+                    role="tooltip"
+                    className="profile-detail-tooltip-popover"
+                  >
+                    Status
+                  </span>
+                </span>
               )}
 
               {profile.bio && (
@@ -419,23 +430,47 @@ export default function ProfileRenderer({
                   className="mx-auto mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs"
                 >
                   {profile.location && (
-                    <span
-                      title="Location"
-                      aria-label={`Location: ${profile.location}`}
-                      className="inline-flex items-center gap-1.5 text-white/70"
-                    >
+                    <span className="inline-flex items-center gap-1.5 text-white/70">
                       <MapPin aria-hidden="true" size={13} className="text-white/45" />
-                      {profile.location}
+                      <span className="profile-detail-tooltip">
+                        <span
+                          tabIndex={0}
+                          aria-label={`Location: ${profile.location}`}
+                          aria-describedby={`profile-location-tooltip-${profile.id}`}
+                          className="profile-detail-tooltip-trigger"
+                        >
+                          {profile.location}
+                        </span>
+                        <span
+                          id={`profile-location-tooltip-${profile.id}`}
+                          role="tooltip"
+                          className="profile-detail-tooltip-popover"
+                        >
+                          Location
+                        </span>
+                      </span>
                     </span>
                   )}
                   {profile.pronouns && (
-                    <span
-                      title="Pronouns"
-                      aria-label={`Pronouns: ${profile.pronouns}`}
-                      className="inline-flex items-center gap-1.5 text-white/70"
-                    >
+                    <span className="inline-flex items-center gap-1.5 text-white/70">
                       <UserRound aria-hidden="true" size={13} className="text-white/45" />
-                      {profile.pronouns}
+                      <span className="profile-detail-tooltip">
+                        <span
+                          tabIndex={0}
+                          aria-label={`Pronouns: ${profile.pronouns}`}
+                          aria-describedby={`profile-pronouns-tooltip-${profile.id}`}
+                          className="profile-detail-tooltip-trigger"
+                        >
+                          {profile.pronouns}
+                        </span>
+                        <span
+                          id={`profile-pronouns-tooltip-${profile.id}`}
+                          role="tooltip"
+                          className="profile-detail-tooltip-popover"
+                        >
+                          Pronouns
+                        </span>
+                      </span>
                     </span>
                   )}
                 </div>
@@ -443,7 +478,7 @@ export default function ProfileRenderer({
 
               {musicUrl && (
                 <section
-                  className="profile-music profile-surface mx-auto mt-5 max-w-md border p-3 text-left"
+                  className={`profile-music profile-surface mx-auto mt-5 w-full max-w-xl border p-3 text-left sm:p-4 ${playing ? "is-playing" : ""}`}
                   style={{
                     ...cardStyle,
                     borderRadius: `${Math.max(12, appearance.surfaceRadius - 6)}px`
@@ -470,10 +505,8 @@ export default function ProfileRenderer({
                   >
                     Your browser does not support audio playback.
                   </audio>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`profile-music-art relative h-14 w-14 shrink-0 overflow-hidden rounded-xl ${playing ? "is-playing" : ""}`}
-                    >
+                  <div className="profile-music-main flex min-w-0 items-center gap-3 sm:gap-4">
+                    <div className={`profile-music-art relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-xl sm:h-24 sm:w-24 ${playing ? "is-playing" : ""}`}>
                       {activeTrack?.coverUrl || activeTrack?.coverImageUrl ? (
                         <Image
                           src={activeTrack.coverUrl || activeTrack.coverImageUrl || ""}
@@ -484,141 +517,143 @@ export default function ProfileRenderer({
                         />
                       ) : (
                         <span
-                          className="flex h-full w-full items-center justify-center"
+                          className="profile-music-art-fallback flex h-full w-full items-center justify-center"
                           style={{
                             background: `linear-gradient(145deg, ${appearance.accentColor}88, #17131f)`,
                             color: appearance.textColor
                           }}
                         >
-                          <Music2 size={22} />
+                          <Music2 size={30} />
                         </span>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold tracking-tight">
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <span className="profile-music-kicker inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[.2em] text-white/45 sm:text-[10px]">
+                          <span className="profile-music-equalizer" aria-hidden="true">
+                            <i /><i /><i />
+                          </span>
+                          {playing ? "Now playing" : "On repeat"}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] tabular-nums text-white/40">
+                          {formatTime(currentTime)} <span className="text-white/20">/</span> {formatTime(duration)}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-sm font-semibold tracking-tight sm:mt-2 sm:text-base">
                         {activeTrack?.title || "on repeat"}
                       </p>
-                      <p className="mt-1 truncate text-xs text-white/50">
+                      <p className="mt-0.5 truncate text-[11px] text-white/50 sm:text-xs">
                         {activeTrack?.artist || profile.display_name}
                       </p>
-                      {musicTracks.length > 1 && (
-                        <p className="mt-1 text-[10px] text-white/35">
-                          {activeTrackIndex + 1} of {musicTracks.length}
-                        </p>
-                      )}
                       {playbackError && (
-                        <p className="mt-1 text-[11px] text-white/55">
+                        <p className="mt-1 text-[10px] text-white/55">
                           Tap play to start the track.
                         </p>
                       )}
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="Previous song"
-                      disabled={musicTracks.length < 2 || preview}
-                      onClick={() => void changeTrack(activeTrackIndex - 1)}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-30"
-                    >
-                      <SkipBack size={16} fill="currentColor" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={playing ? "Pause music" : "Play music"}
-                      onClick={() => void toggleMusic()}
-                      disabled={preview}
-                      className="profile-music-play flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-black transition hover:scale-105 disabled:cursor-default"
-                      style={{ backgroundColor: appearance.accentColor }}
-                    >
-                      {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Next song"
-                      disabled={musicTracks.length < 2 || preview}
-                      onClick={() => void changeTrack(activeTrackIndex + 1)}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-30"
-                    >
-                      <SkipForward size={16} fill="currentColor" />
-                    </button>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2.5 px-1">
-                    <span className="w-8 text-right font-mono text-[10px] tabular-nums text-white/45">
-                      {formatTime(currentTime)}
-                    </span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={duration}
-                      step={0.01}
-                      value={Math.min(currentTime, duration || 0)}
-                      aria-label="Seek through song"
-                      disabled={preview || !duration}
-                      onInput={(event) => {
-                        const nextTime = Number(event.currentTarget.value);
-                        if (audioRef.current) audioRef.current.currentTime = nextTime;
-                        setCurrentTime(nextTime);
-                      }}
-                      onChange={(event) => {
-                        const nextTime = Number(event.currentTarget.value);
-                        if (audioRef.current) audioRef.current.currentTime = nextTime;
-                        setCurrentTime(nextTime);
-                      }}
-                      className="profile-music-seek min-w-0 flex-1"
-                      style={{
-                        "--music-accent": appearance.accentColor,
-                        "--music-progress": `${duration ? (currentTime / duration) * 100 : 0}%`
-                      } as CSSProperties}
-                    />
-                    <span className="w-8 font-mono text-[10px] tabular-nums text-white/45">
-                      {formatTime(duration)}
-                    </span>
-                    <div className="profile-volume-control group relative flex shrink-0 items-center">
                       <input
                         type="range"
                         min={0}
-                        max={1}
+                        max={duration}
                         step={0.01}
-                        value={muted ? 0 : volume}
-                        aria-label="Music volume (slider maximum is 50% playback volume)"
-                        disabled={preview}
+                        value={Math.min(currentTime, duration || 0)}
+                        aria-label="Seek through song"
+                        disabled={preview || !duration}
                         onInput={(event) => {
-                          const nextVolume = Number(event.currentTarget.value);
-                          setVolume(nextVolume);
-                          if (nextVolume > 0) {
-                            volumeBeforeMute.current = nextVolume;
-                          }
-                          setMuted(nextVolume === 0);
-                          if (audioRef.current) {
-                            audioRef.current.volume = nextVolume * MAX_AUDIO_VOLUME;
-                            audioRef.current.muted = nextVolume === 0;
-                          }
+                          const nextTime = Number(event.currentTarget.value);
+                          if (audioRef.current) audioRef.current.currentTime = nextTime;
+                          setCurrentTime(nextTime);
                         }}
-                        className="profile-volume-slider"
+                        onChange={(event) => {
+                          const nextTime = Number(event.currentTarget.value);
+                          if (audioRef.current) audioRef.current.currentTime = nextTime;
+                          setCurrentTime(nextTime);
+                        }}
+                        className="profile-music-seek mt-2.5 block w-full"
                         style={{
-                          "--volume-progress": `${(muted ? 0 : volume) * 100}%`
+                          "--music-accent": appearance.accentColor,
+                          "--music-progress": `${duration ? (currentTime / duration) * 100 : 0}%`
                         } as CSSProperties}
                       />
-                      <button
-                        type="button"
-                        aria-label={muted ? "Unmute music" : "Mute music"}
-                        aria-pressed={muted}
-                        onClick={() => {
-                          const nextMuted = !muted;
-                          setMuted(nextMuted);
-                          if (audioRef.current) {
-                            if (!nextMuted && volume === 0) {
-                              setVolume(volumeBeforeMute.current);
-                              audioRef.current.volume =
-                                volumeBeforeMute.current * MAX_AUDIO_VOLUME;
-                            }
-                            audioRef.current.muted = nextMuted;
-                          }
-                        }}
-                        disabled={preview}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white disabled:cursor-default"
-                      >
-                        {muted || volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
-                      </button>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label="Previous song"
+                            disabled={musicTracks.length < 2 || preview}
+                            onClick={() => void changeTrack(activeTrackIndex - 1)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-30"
+                          >
+                            <SkipBack size={15} fill="currentColor" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={playing ? "Pause music" : "Play music"}
+                            onClick={() => void toggleMusic()}
+                            disabled={preview}
+                            className="profile-music-play flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:scale-105 disabled:cursor-default"
+                            style={{ backgroundColor: appearance.accentColor }}
+                          >
+                            {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Next song"
+                            disabled={musicTracks.length < 2 || preview}
+                            onClick={() => void changeTrack(activeTrackIndex + 1)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-30"
+                          >
+                            <SkipForward size={15} fill="currentColor" />
+                          </button>
+                        </div>
+                        <div className="profile-volume-control group relative flex shrink-0 items-center">
+                          <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={muted ? 0 : volume}
+                            aria-label="Music volume (slider maximum is 50% playback volume)"
+                            disabled={preview}
+                            onInput={(event) => {
+                              const nextVolume = Number(event.currentTarget.value);
+                              setVolume(nextVolume);
+                              if (nextVolume > 0) {
+                                volumeBeforeMute.current = nextVolume;
+                              }
+                              setMuted(nextVolume === 0);
+                              if (audioRef.current) {
+                                audioRef.current.volume = nextVolume * MAX_AUDIO_VOLUME;
+                                audioRef.current.muted = nextVolume === 0;
+                              }
+                            }}
+                            className="profile-volume-slider"
+                            style={{
+                              "--volume-progress": `${(muted ? 0 : volume) * 100}%`
+                            } as CSSProperties}
+                          />
+                          <button
+                            type="button"
+                            aria-label={muted ? "Unmute music" : "Mute music"}
+                            aria-pressed={muted}
+                            onClick={() => {
+                              const nextMuted = !muted;
+                              setMuted(nextMuted);
+                              if (audioRef.current) {
+                                if (!nextMuted && volume === 0) {
+                                  setVolume(volumeBeforeMute.current);
+                                  audioRef.current.volume =
+                                    volumeBeforeMute.current * MAX_AUDIO_VOLUME;
+                                }
+                                audioRef.current.muted = nextMuted;
+                              }
+                            }}
+                            disabled={preview}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white disabled:cursor-default"
+                          >
+                            {muted || volume === 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </section>
