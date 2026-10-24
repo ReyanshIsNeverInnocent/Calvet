@@ -1,21 +1,66 @@
-import { BadgeCheck, CircleStar, Crown, Sparkles, type LucideIcon } from "lucide-react";
+import {
+  BadgeCheck,
+  CircleStar,
+  Code2,
+  Crown,
+  Infinity,
+  Sparkles,
+  type LucideIcon
+} from "lucide-react";
 import type { CSSProperties } from "react";
 import type { ProfileBadge } from "@/types/profile";
 
-// Add a custom kind to BADGE_STYLES, then issue it in Supabase SQL Editor
-// (after migration 012):
-// INSERT INTO public.profile_badges (profile_id, kind, label)
-// SELECT id, 'custom-kind', 'Custom label' FROM public.profiles
-// WHERE username = 'account';
-// To remove it, DELETE FROM public.profile_badges b
-// USING public.profiles p
-// WHERE b.profile_id = p.id AND p.username = 'account'
-//   AND b.kind = 'custom-kind';
+/*
+Manage badges in Supabase Dashboard > SQL Editor. Migrations 011 and 012 must
+have been applied first. Replace 'account' with the profile's exact username.
+
+Add a badge:
+INSERT INTO public.profile_badges (profile_id, kind, label)
+SELECT id, 'custom-kind', 'Custom label'
+FROM public.profiles
+WHERE username = 'account'
+ON CONFLICT (profile_id, kind) DO UPDATE SET label = EXCLUDED.label;
+
+Add multiple badges to one profile at once:
+INSERT INTO public.profile_badges (profile_id, kind, label)
+SELECT p.id, badge.kind, badge.label
+FROM public.profiles p
+CROSS JOIN (VALUES
+  ('founder', 'Founder'),
+  ('developer', 'Developer'),
+  ('the-one-and-only', 'The One and Only')
+) AS badge(kind, label)
+WHERE p.username = 'account'
+ON CONFLICT (profile_id, kind) DO UPDATE SET label = EXCLUDED.label;
+
+Modify its displayed label:
+UPDATE public.profile_badges b
+SET label = 'Updated label'
+FROM public.profiles p
+WHERE b.profile_id = p.id
+  AND p.username = 'account'
+  AND b.kind = 'custom-kind';
+
+Delete a badge:
+DELETE FROM public.profile_badges b
+USING public.profiles p
+WHERE b.profile_id = p.id
+  AND p.username = 'account'
+  AND b.kind = 'custom-kind';
+
+Built-in kinds: verified, founder, early, official-demo, developer, and
+the-one-and-only. Custom kinds must be 1-40 characters. Add a matching entry
+to BADGE_STYLES to choose its icon and color; otherwise the badge uses the
+default Sparkles icon and color. Labels must be 1-40 characters. Changing a
+badge kind also requires updating the matching BADGE_STYLES entry.
+*/
 const BADGE_STYLES: Record<string, { Icon: LucideIcon; color: string }> = {
   verified: { Icon: BadgeCheck, color: "#60d8ff" },
-  creator: { Icon: Sparkles, color: "#ff65d8" },
+  founder: { Icon: Crown, color: "#ff65d8" },
   early: { Icon: CircleStar, color: "#ffd45c" },
-  "official-demo": { Icon: Crown, color: "#ffbd59" }
+  "official-demo": { Icon: Sparkles, color: "#ffbd59" },
+  developer: { Icon: Code2, color: "#69e6b3" },
+  "the-one-and-only": { Icon: Infinity, color: "#c4a1ff" }
 };
 
 export default function ProfileBadges({ badges }: { badges: ProfileBadge[] }) {
