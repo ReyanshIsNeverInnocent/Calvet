@@ -9,16 +9,12 @@ import {
 } from "@icons-pack/react-simple-icons";
 import {
   ArrowUpRight,
-  BadgeCheck,
   BriefcaseBusiness,
-  CircleStar,
   Link2,
   MapPin,
   Music2,
   Pause,
   Play,
-  ShieldCheck,
-  Sparkles,
   SkipBack,
   SkipForward,
   UserRound,
@@ -28,6 +24,7 @@ import {
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import ProfileBadges from "@/components/ProfileBadges";
 import UsernameEffect from "@/components/UsernameEffect";
 import { isHttpUrl } from "@/lib/music";
 import type { PublicProfileData } from "@/types/profile";
@@ -352,15 +349,18 @@ export default function ProfileRenderer({
                 )}
               </div>
 
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.055em] sm:text-4xl">
-                <UsernameEffect
-                  key={profile.display_name}
-                  text={profile.display_name}
-                  effect={appearance.usernameEffect}
-                  reducedMotion={motionDisabled}
-                  accentColor={appearance.accentColor}
-                />
-              </h1>
+              <div className="profile-name-row mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                <h1 className="text-3xl font-semibold tracking-[-0.055em] sm:text-4xl">
+                  <UsernameEffect
+                    key={profile.display_name}
+                    text={profile.display_name}
+                    effect={appearance.usernameEffect}
+                    reducedMotion={motionDisabled}
+                    accentColor={appearance.accentColor}
+                  />
+                </h1>
+                <ProfileBadges badges={data.badges} />
+              </div>
               <p className="mt-1 text-sm text-white/40">
                 <span className="profile-detail-tooltip">
                   <span
@@ -380,33 +380,6 @@ export default function ProfileRenderer({
                   </span>
                 </span>
               </p>
-
-              {data.badges.length > 0 && (
-                <div className="mt-2 flex flex-wrap justify-center gap-2">
-                  {data.badges.map((badge) => {
-                    const Icon =
-                      badge.kind === "verified"
-                        ? BadgeCheck
-                        : badge.kind === "creator"
-                          ? Sparkles
-                          : CircleStar;
-                    return (
-                      <span
-                        key={badge.id}
-                        aria-label={`${badge.label} badge`}
-                        title={`${badge.label} badge`}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/75"
-                      >
-                        <Icon aria-hidden="true" size={13} />
-                        {badge.label}
-                        {badge.kind === "verified" && (
-                          <ShieldCheck aria-hidden="true" size={12} />
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
 
               {profile.status && (
                 <span className="profile-detail-tooltip mx-auto mt-3">

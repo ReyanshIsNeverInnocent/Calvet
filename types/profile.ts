@@ -139,7 +139,7 @@ export type ProfileMedia = {
 export type ProfileBadge = {
   id: string;
   profile_id: string;
-  kind: "verified" | "creator" | "early";
+  kind: string;
   label: string;
   issued_at: string;
 };

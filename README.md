@@ -119,26 +119,31 @@ permissions on `profile-music`. Badge rows have no client write grant or policy;
 trusted administrators must issue or revoke them through the Supabase SQL
 Editor after reviewing the profile. Run migration `011` once on an existing
 project before using the media or analytics dashboard.
+Migration `012_custom_profile_badges.sql` allows custom badge kinds and awards
+the `Official Calvet Demo` badge to the `demo` profile if it exists when the
+migration runs.
 
 Afterward, confirm the profile, content, analytics, badge, and media tables
 exist and keep Row Level Security enabled.
 
-To issue a badge, a trusted administrator can insert it from the Supabase SQL
-Editor using the profile's username. For example:
+Badge icons and colors are configured in
+[`components/ProfileBadges.tsx`](./components/ProfileBadges.tsx). To create a
+custom badge, add its kind and icon/color there, then issue it to a profile from
+the Supabase SQL Editor:
 
 ```sql
 insert into public.profile_badges (profile_id, kind, label)
 select id, 'verified', 'Verified'
 from public.profiles
-where username = 'example';
+where username = 'example'
+on conflict (profile_id, kind) do update set label = excluded.label;
 ```
 
-Replace `example` with the account's username and change the `kind` and
-`label` to the badge you intend to award. Supported kinds are `verified`,
-`creator`, and `early`; each profile can have one badge of each kind. Run this
-as a trusted project administrator in **Supabase → SQL Editor**, after
-migration `011` has been applied. The badge then appears on the public profile
-and in the owner's Settings. To revoke it, run:
+Change `example`, `verified`, and `Verified` to the account's username, the
+badge kind, and its visible tooltip label. Each profile can have one badge per
+kind. Run this as a trusted project administrator in **Supabase → SQL Editor**,
+after migrations `011` and `012` have been applied. The badge appears on the
+public profile and in the owner's Settings. To revoke it, run:
 
 ```sql
 delete from public.profile_badges b
@@ -148,9 +153,12 @@ where b.profile_id = p.id
   and b.kind = 'verified';
 ```
 
-Only trusted administrators should issue `verified` badges. Users cannot create
-or change badge rows through the app; there is intentionally no self-service
-verification button.
+To remove a custom badge kind, delete its entry from
+[`components/ProfileBadges.tsx`](./components/ProfileBadges.tsx) and revoke
+existing awards with the same `DELETE` query, changing `example` and
+`verified` to the target username and kind. Only trusted administrators should
+issue `verified` badges. Users cannot create or change badge rows through the
+app; there is intentionally no self-service verification button.
 
 Email signups choose a username before creating an account. Provider sign-ins
 choose one after authentication if they do not already have a profile. Usernames
