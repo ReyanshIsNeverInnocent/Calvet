@@ -13,9 +13,11 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  BarChart3,
   ExternalLink,
   Eye,
   Link2,
+  Images,
   Music2,
   Palette,
   Plus,
@@ -37,6 +39,8 @@ import type {
   Profile,
   ProfileLink,
   Project,
+  ProfileBadge,
+  ProfileMedia,
   SocialLink,
   PublicProfileData,
   MusicTrack
@@ -49,9 +53,20 @@ type Props = {
   initialLinks: ProfileLink[];
   initialSocials: SocialLink[];
   initialProjects: Project[];
+  initialMedia: ProfileMedia[];
+  initialBadges: ProfileBadge[];
+  initialViews: DailyProfileView[];
 };
 
-type EditorSection = "profile" | "appearance" | "music" | "links" | "settings";
+type DailyProfileView = { view_date: string; views: number };
+type EditorSection =
+  | "profile"
+  | "appearance"
+  | "music"
+  | "links"
+  | "media"
+  | "analytics"
+  | "settings";
 
 const usernameEffectLabels: Record<Appearance["usernameEffect"], string> = {
   none: "None",
@@ -148,7 +163,10 @@ export default function DashboardClient({
   initialProfile,
   initialLinks,
   initialSocials,
-  initialProjects
+  initialProjects,
+  initialMedia,
+  initialBadges,
+  initialViews
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -159,6 +177,9 @@ export default function DashboardClient({
   const [links, setLinks] = useState(initialLinks);
   const [socials, setSocials] = useState(initialSocials);
   const [projects, setProjects] = useState(initialProjects);
+  const [media, setMedia] = useState(initialMedia);
+  const [badges] = useState(initialBadges);
+  const views = initialViews;
   const [active, setActive] = useState<EditorSection>("profile");
   const [notice, setNotice] = useState("");
   const [cropImage, setCropImage] = useState<CropImageState | null>(null);
@@ -1010,6 +1031,109 @@ export default function DashboardClient({
     setNotice("Project removed.");
   }
 
+  async function addCreatorMedia(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (media.length >= 5) {
+      setNotice("A profile can have up to 5 media items. Remove one before adding another.");
+      return;
+    }
+
+    const mediaTypes: Record<string, { extension: string; kind: "image" | "video" }> = {
+      "image/jpeg": { extension: "jpg", kind: "image" },
+      "image/png": { extension: "png", kind: "image" },
+      "image/webp": { extension: "webp", kind: "image" },
+      "video/mp4": { extension: "mp4", kind: "video" },
+      "video/webm": { extension: "webm", kind: "video" }
+    };
+    const mediaType = mediaTypes[file.type.toLowerCase()];
+    if (!mediaType) {
+      setNotice("Choose a JPG, PNG, WebP, MP4, or WebM file.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setNotice("Images and videos must be 15 MB or smaller.");
+      return;
+    }
+
+    const storagePath = `${profile.user_id}/${createUploadId()}.${mediaType.extension}`;
+    setNotice(`Uploading ${file.name}...`);
+    const { data: uploadedFile, error: uploadError } = await supabase.storage
+      .from("creator-media")
+      .upload(storagePath, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: false
+      });
+
+    if (uploadError) {
+      setNotice(
+        uploadError.message.toLowerCase().includes("bucket not found")
+          ? 'The "creator-media" bucket is missing. Run supabase/migrations/011_creator_features.sql, then try again.'
+          : `Could not upload media: ${uploadError.message}`
+      );
+      return;
+    }
+
+    const title = file.name.replace(/\.[^/.]+$/, "").slice(0, 80);
+    const { data: savedMedia, error: saveError } = await supabase
+      .from("profile_media")
+      .insert({
+        profile_id: profile.id,
+        storage_path: uploadedFile.path,
+        media_type: mediaType.kind,
+        title,
+        position: media.length
+      })
+      .select("*")
+      .single();
+
+    if (saveError) {
+      const { error: cleanupError } = await supabase.storage
+        .from("creator-media")
+        .remove([uploadedFile.path]);
+      setNotice(
+        cleanupError
+          ? `Could not save media details: ${saveError.message}. The uploaded file also could not be removed: ${cleanupError.message}`
+          : `Could not save media details: ${saveError.message}`
+      );
+      return;
+    }
+
+    setMedia((current) => [
+      ...current,
+      {
+        ...savedMedia,
+        media_url: supabase.storage
+          .from("creator-media")
+          .getPublicUrl(savedMedia.storage_path).data.publicUrl
+      }
+    ]);
+    setNotice(`${mediaType.kind === "image" ? "Image" : "Video"} added to your profile.`);
+  }
+
+  async function removeCreatorMedia(item: ProfileMedia) {
+    const { error: deleteError } = await supabase
+      .from("profile_media")
+      .delete()
+      .eq("id", item.id);
+    if (deleteError) {
+      setNotice(`Could not remove media: ${deleteError.message}`);
+      return;
+    }
+
+    setMedia((current) => current.filter((entry) => entry.id !== item.id));
+    const { error: storageError } = await supabase.storage
+      .from("creator-media")
+      .remove([item.storage_path]);
+    setNotice(
+      storageError
+        ? `Media removed from your profile, but its uploaded file could not be deleted: ${storageError.message}`
+        : "Media removed."
+    );
+  }
+
   async function exportProfile() {
     const payload = {
       version: 1,
@@ -1017,7 +1141,8 @@ export default function DashboardClient({
       profile,
       links,
       socials,
-      projects
+      projects,
+      media
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -1038,11 +1163,15 @@ export default function DashboardClient({
     { id: "appearance", label: "Appearance", icon: Palette },
     { id: "music", label: "Music", icon: Music2 },
     { id: "links", label: "Links", icon: Link2 },
+    { id: "media", label: "Media", icon: Images },
+    { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings }
   ];
 
   const profileUrl = `/@${encodeURIComponent(profile.username)}`;
   const linkSuggestion = suggestLink(linkUrlInput);
+  const totalViews = views.reduce((total, row) => total + row.views, 0);
+  const maxDailyViews = Math.max(1, ...views.map((row) => row.views));
 
   return (
     <main className="dashboard-shell min-h-screen bg-[#f5f1e7] text-[#292b24]">
@@ -1413,10 +1542,10 @@ export default function DashboardClient({
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {([
-                        ["minimal", "Minimal", "A tighter, focused page"],
-                        ["personal", "Personal", "A balanced profile"],
-                        ["social", "Social", "A centered social profile"],
-                        ["portfolio", "Portfolio", "Projects before links"]
+                        ["minimal", "Minimal", "Compact intro and essentials"],
+                        ["personal", "Personal", "Balanced profile with music"],
+                        ["social", "Social", "Social handles and quick links"],
+                        ["portfolio", "Portfolio", "Wide projects-first layout"]
                       ] as const).map(([mode, title, description]) => (
                         <button
                           key={mode}
@@ -2627,8 +2756,206 @@ export default function DashboardClient({
             </div>
           )}
 
+          {active === "media" && (
+            <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="font-serif text-2xl">Your media</h2>
+                  <p className="mt-1 max-w-xl text-sm text-black/50">
+                    Share up to 5 images or short clips. Uploaded media is public
+                    and may be copied by anyone who can view your profile.
+                  </p>
+                </div>
+                <label
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#6948ef] ${
+                    media.length >= 5 ? "cursor-not-allowed opacity-50" : ""
+                  }`}
+                >
+                  <Plus size={16} />
+                  Add media
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                    disabled={media.length >= 5}
+                    onChange={(event) =>
+                      void addCreatorMedia(event).catch((error: unknown) =>
+                        setNotice(
+                          `Could not upload media: ${
+                            error instanceof Error
+                              ? error.message
+                              : "An unexpected error occurred."
+                          }`
+                        )
+                      )
+                    }
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+              <p className="mt-3 text-xs text-black/45">
+                JPG, PNG, WebP, MP4, or WebM · maximum 15 MB each · {media.length}/5 used
+              </p>
+
+              {media.length === 0 ? (
+                <p className="mt-6 rounded-xl bg-black/[0.03] p-6 text-center text-sm text-black/50">
+                  Nothing here yet. Add an image or video to show it on your page.
+                </p>
+              ) : (
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  {media.map((item) => (
+                    <div
+                      key={item.id}
+                      className="overflow-hidden rounded-2xl border border-black/10 bg-white"
+                    >
+                      {item.media_type === "video" ? (
+                        <video
+                          controls
+                          preload="metadata"
+                          playsInline
+                          src={item.media_url}
+                          className="aspect-video w-full bg-black object-contain"
+                          aria-label={item.title || "Profile video"}
+                        />
+                      ) : (
+                        <Image
+                          src={item.media_url || ""}
+                          alt={item.title || "Profile image"}
+                          width={800}
+                          height={600}
+                          unoptimized
+                          className="max-h-64 w-full object-contain"
+                        />
+                      )}
+                      <div className="flex items-center justify-between gap-3 p-3">
+                        <p className="truncate text-sm font-medium">
+                          {item.title || (item.media_type === "video" ? "Video" : "Image")}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void removeCreatorMedia(item).catch(
+                              (error: unknown) =>
+                                setNotice(
+                                  `Could not remove media: ${
+                                    error instanceof Error
+                                      ? error.message
+                                      : "An unexpected error occurred."
+                                  }`
+                                )
+                            )
+                          }
+                          aria-label={`Remove ${item.title || item.media_type}`}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-black/40 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {active === "analytics" && (
+            <div className="space-y-5">
+              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+                <h2 className="font-serif text-2xl">Profile views</h2>
+                <p className="mt-1 text-sm text-black/50">
+                  Approximate daily views over the last 30 days. Refreshes in the
+                  same browser tab session are counted once. Calvet does not store
+                  visitor IP addresses or personal identifiers for this chart.
+                </p>
+                <p className="mt-6 text-4xl font-semibold tracking-tight">{totalViews}</p>
+                <p className="text-sm text-black/45">views in the last 30 days</p>
+
+                {views.length > 0 ? (
+                  <div
+                    role="img"
+                    aria-label={`Daily profile views for the last 30 days; ${totalViews} total`}
+                    className="mt-6 flex h-32 items-end gap-1 rounded-xl bg-black/[0.025] px-3 pt-3"
+                  >
+                    {views.map((row) => {
+                      const day = new Date(`${row.view_date}T00:00:00Z`);
+                      const label = new Intl.DateTimeFormat(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        timeZone: "UTC"
+                      }).format(day);
+                      return (
+                        <div
+                          key={row.view_date}
+                          title={`${label}: ${row.views} views`}
+                          className="min-w-1 flex-1 rounded-t bg-violet-400"
+                          style={{
+                            height: `${Math.max(4, (row.views / maxDailyViews) * 100)}%`
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-6 rounded-xl bg-black/[0.03] p-5 text-center text-sm text-black/50">
+                    No profile views recorded yet. Views will appear here once
+                    visitors open your public profile.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-black/10 bg-white/70 p-4 text-xs leading-5 text-black/50">
+                Counts are aggregate estimates, not unique-person analytics.
+                Browser storage can be cleared and automated clients can
+                overcount; private profile visits and your own signed-in views
+                are excluded.
+              </div>
+            </div>
+          )}
+
           {active === "settings" && (
             <div className="space-y-5">
+              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+                <h2 className="text-lg font-bold">Search and sharing previews</h2>
+                <p className="mt-1 text-sm text-black/50">
+                  Set how your page appears in search results and when shared.
+                  Leave a field blank to use your profile details.
+                </p>
+                <div className="mt-5 grid gap-4">
+                  <label className="text-sm font-semibold">
+                    Page title
+                    <input
+                      value={profile.appearance.seoTitle}
+                      onChange={(event) =>
+                        updateAppearance("seoTitle", event.target.value)
+                      }
+                      maxLength={70}
+                      placeholder={`${profile.display_name} (@${profile.username})`}
+                      className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 font-normal outline-none focus:border-violet"
+                    />
+                    <span className="mt-1 block text-right text-xs font-normal text-black/35">
+                      {profile.appearance.seoTitle.length}/70
+                    </span>
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Search description
+                    <textarea
+                      value={profile.appearance.seoDescription}
+                      onChange={(event) =>
+                        updateAppearance("seoDescription", event.target.value)
+                      }
+                      maxLength={160}
+                      rows={3}
+                      placeholder={
+                        profile.bio || `${profile.display_name}'s profile`
+                      }
+                      className="mt-2 w-full resize-y rounded-xl border border-black/10 px-3 py-3 font-normal outline-none focus:border-violet"
+                    />
+                    <span className="mt-1 block text-right text-xs font-normal text-black/35">
+                      {profile.appearance.seoDescription.length}/160
+                    </span>
+                  </label>
+                </div>
+              </div>
+
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
                 <h2 className="text-lg font-bold">Account</h2>
                 <p className="mt-2 text-sm text-black/55">
@@ -2667,11 +2994,43 @@ export default function DashboardClient({
                   Public profile is enabled
                 </label>
               </div>
+
+              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+                <h2 className="text-lg font-bold">Profile badges</h2>
+                <p className="mt-1 text-sm text-black/50">
+                  Badges are issued by Calvet administrators and cannot be
+                  self-assigned. This keeps verification and recognition marks
+                  trustworthy.
+                </p>
+                {badges.length > 0 ? (
+                  <ul className="mt-4 flex flex-wrap gap-2">
+                    {badges.map((badge) => (
+                      <li
+                        key={badge.id}
+                        className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold"
+                      >
+                        {badge.label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-4 text-sm text-black/40">No badges yet.</p>
+                )}
+              </div>
             </div>
           )}
 
           <div className="mt-8">
-            <PreviewCard data={createPreviewData(profile, links, socials, projects)} />
+            <PreviewCard
+              data={createPreviewData(
+                profile,
+                links,
+                socials,
+                projects,
+                media,
+                badges
+              )}
+            />
           </div>
         </section>
       </div>
@@ -2708,7 +3067,9 @@ function createPreviewData(
   profile: Profile,
   links: ProfileLink[],
   socials: SocialLink[],
-  projects: Project[]
+  projects: Project[],
+  media: ProfileMedia[],
+  badges: ProfileBadge[]
 ): PublicProfileData {
   const {
     id,
@@ -2752,7 +3113,9 @@ function createPreviewData(
     ),
     projects: projects.filter(
       (project) => project.enabled && urlSchema.safeParse(project.url).success
-    )
+    ),
+    media: media.filter((item) => item.enabled),
+    badges
   };
 }
 

@@ -9,18 +9,25 @@ import {
 } from "@icons-pack/react-simple-icons";
 import {
   ArrowUpRight,
+  BadgeCheck,
   BriefcaseBusiness,
+  CircleStar,
   Link2,
+  MapPin,
   Music2,
   Pause,
   Play,
+  ShieldCheck,
+  Sparkles,
   SkipBack,
   SkipForward,
+  UserRound,
   Volume2,
   VolumeX
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createClient } from "@/lib/supabase/browser";
 import UsernameEffect from "@/components/UsernameEffect";
 import { isHttpUrl } from "@/lib/music";
 import type { PublicProfileData } from "@/types/profile";
@@ -50,6 +57,7 @@ export default function ProfileRenderer({
   preview?: boolean;
 }) {
   const { profile, links, socials, projects } = data;
+  const supabase = useMemo(() => createClient(), []);
   const appearance = profile.appearance;
   const avatarImage = appearance.avatarImageUpload || profile.avatar_url;
   const bannerImage = appearance.bannerImageUpload || profile.banner_url;
@@ -63,10 +71,12 @@ export default function ProfileRenderer({
         : "rounded-2xl";
   const spacing =
     profile.mode === "minimal" || appearance.spacing === "compact"
-      ? { page: "py-8 sm:py-12", section: "mt-8", projects: "mt-10" }
+      ? { page: "py-6 sm:py-10", section: "mt-7", projects: "mt-8" }
+      : appearance.spacing === "comfortable"
+        ? { page: "py-8 sm:py-12", section: "mt-8", projects: "mt-10" }
       : appearance.spacing === "airy"
         ? { page: "py-16 sm:py-24", section: "mt-16", projects: "mt-20" }
-        : { page: "py-10 sm:py-16", section: "mt-12", projects: "mt-14" };
+        : { page: "py-8 sm:py-12", section: "mt-8", projects: "mt-10" };
   const layoutWidth =
     profile.mode === "portfolio"
       ? "max-w-4xl"
@@ -138,6 +148,33 @@ export default function ProfileRenderer({
   const [playbackError, setPlaybackError] = useState(false);
   const activeTrack = musicTracks[activeTrackIndex] ?? musicTracks[0];
   const musicUrl = activeTrack?.url ?? null;
+
+  useEffect(() => {
+    if (preview || !profile.is_public) return;
+    const storageKey = `calvet-profile-view:${profile.id}`;
+    try {
+      if (window.sessionStorage.getItem(storageKey)) return;
+      window.sessionStorage.setItem(storageKey, "1");
+    } catch (error) {
+      console.error("Unable to record profile view without session storage.", error);
+      return;
+    }
+
+    void supabase
+      .rpc("record_profile_view", {
+        profile_username: profile.username
+      })
+      .then(
+        ({ error }) => {
+          if (error) {
+            console.error("Unable to record profile view.", error);
+          }
+        },
+        (error: unknown) => {
+          console.error("Unable to record profile view.", error);
+        }
+      );
+  }, [preview, profile.id, profile.is_public, profile.username, supabase]);
 
   useEffect(() => {
     if (!resumeAfterTrackChange.current) return;
@@ -249,7 +286,8 @@ export default function ProfileRenderer({
         className={`mx-auto ${preview ? "max-w-5xl py-6" : `${layoutWidth} ${spacing.page}`}`}
       >
         <article
-          className={`profile-panel profile-surface relative overflow-hidden border p-5 sm:p-9 ${cardEffect}`}
+          data-layout={profile.mode}
+          className={`profile-panel profile-surface relative overflow-hidden border p-4 sm:p-6 ${cardEffect}`}
           style={{
             ...cardStyle,
             "--surface-highlight": appearance.surfaceHighlight
@@ -269,7 +307,7 @@ export default function ProfileRenderer({
             style={{ backgroundColor: appearance.accentColor }}
           />
 
-          <div className="relative flex flex-col">
+          <div className="profile-content relative flex flex-col">
             {bannerImage && (
               <div
                 className="profile-banner-fade relative order-0 -mx-5 -mt-5 mb-0 aspect-[3/1] overflow-hidden rounded-t-[inherit] sm:-mx-9 sm:-mt-9"
@@ -288,7 +326,7 @@ export default function ProfileRenderer({
             )}
 
             <section
-              className={`relative z-10 order-1 text-center ${
+              className={`profile-identity relative z-10 order-1 text-center ${
                 bannerImage ? "-mt-12 sm:-mt-16" : ""
               }`}
             >
@@ -300,11 +338,11 @@ export default function ProfileRenderer({
                     width={112}
                     height={112}
                     unoptimized
-                    className={`mx-auto h-24 w-24 border border-white/15 object-cover shadow-[0_12px_45px_rgba(0,0,0,.4)] sm:h-28 sm:w-28 ${radius}`}
+                    className={`mx-auto h-20 w-20 border border-white/15 object-cover shadow-[0_12px_45px_rgba(0,0,0,.4)] sm:h-24 sm:w-24 ${radius}`}
                   />
                 ) : (
                   <div
-                    className={`mx-auto flex h-24 w-24 items-center justify-center border border-white/15 text-4xl font-semibold text-white shadow-[0_12px_45px_rgba(0,0,0,.4)] sm:h-28 sm:w-28 ${radius}`}
+                    className={`mx-auto flex h-20 w-20 items-center justify-center border border-white/15 text-3xl font-semibold text-white shadow-[0_12px_45px_rgba(0,0,0,.4)] sm:h-24 sm:w-24 ${radius}`}
                     style={{
                       background: `linear-gradient(145deg, ${appearance.accentColor}, #17131f)`
                     }}
@@ -314,7 +352,7 @@ export default function ProfileRenderer({
                 )}
               </div>
 
-              <h1 className="mt-6 text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.055em] sm:text-4xl">
                 <UsernameEffect
                   key={profile.display_name}
                   text={profile.display_name}
@@ -323,10 +361,41 @@ export default function ProfileRenderer({
                   accentColor={appearance.accentColor}
                 />
               </h1>
-              <p className="mt-2 text-sm text-white/40">@{profile.username}</p>
+              <p className="mt-1 text-sm text-white/40">@{profile.username}</p>
+
+              {data.badges.length > 0 && (
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  {data.badges.map((badge) => {
+                    const Icon =
+                      badge.kind === "verified"
+                        ? BadgeCheck
+                        : badge.kind === "creator"
+                          ? Sparkles
+                          : CircleStar;
+                    return (
+                      <span
+                        key={badge.id}
+                        aria-label={`${badge.label} badge`}
+                        title={`${badge.label} badge`}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-white/75"
+                      >
+                        <Icon aria-hidden="true" size={13} />
+                        {badge.label}
+                        {badge.kind === "verified" && (
+                          <ShieldCheck aria-hidden="true" size={12} />
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
 
               {profile.status && (
-                <div className="mx-auto mt-5 inline-flex max-w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3.5 py-2 text-xs text-white/70">
+                <div
+                  aria-label={`Status: ${profile.status}`}
+                  title="Status"
+                  className="mx-auto mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs text-white/70"
+                >
                   <span
                     className="h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_12px_currentColor]"
                     style={{
@@ -339,20 +408,42 @@ export default function ProfileRenderer({
               )}
 
               {profile.bio && (
-                <p className="mx-auto mt-5 max-w-lg text-base leading-7 text-white/65">
+                <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-white/65 sm:text-base">
                   {profile.bio}
                 </p>
               )}
 
               {(profile.location || profile.pronouns) && (
-                <p className="mt-4 text-xs text-white/35">
-                  {[profile.location, profile.pronouns].filter(Boolean).join(" · ")}
-                </p>
+                <div
+                  aria-label="Profile details"
+                  className="mx-auto mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs"
+                >
+                  {profile.location && (
+                    <span
+                      title="Location"
+                      aria-label={`Location: ${profile.location}`}
+                      className="inline-flex items-center gap-1.5 text-white/70"
+                    >
+                      <MapPin aria-hidden="true" size={13} className="text-white/45" />
+                      {profile.location}
+                    </span>
+                  )}
+                  {profile.pronouns && (
+                    <span
+                      title="Pronouns"
+                      aria-label={`Pronouns: ${profile.pronouns}`}
+                      className="inline-flex items-center gap-1.5 text-white/70"
+                    >
+                      <UserRound aria-hidden="true" size={13} className="text-white/45" />
+                      {profile.pronouns}
+                    </span>
+                  )}
+                </div>
               )}
 
               {musicUrl && (
                 <section
-                  className="profile-music profile-surface mx-auto mt-7 max-w-md border p-3 text-left"
+                  className="profile-music profile-surface mx-auto mt-5 max-w-md border p-3 text-left"
                   style={{
                     ...cardStyle,
                     borderRadius: `${Math.max(12, appearance.surfaceRadius - 6)}px`
@@ -534,7 +625,7 @@ export default function ProfileRenderer({
               )}
 
               {socials.length > 0 && (
-                <div className="mt-7 flex justify-center gap-2">
+                <div className="profile-socials mt-5 flex flex-wrap justify-center gap-2">
                   {socials.map((social, index) => (
                     <a
                       key={social.id}
@@ -542,13 +633,16 @@ export default function ProfileRenderer({
                       target="_blank"
                       rel="noreferrer noopener"
                       aria-label={social.platform}
-                      className={`social-button profile-surface flex h-11 w-11 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${motion}`}
+                      className={`social-button profile-surface flex h-10 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${profile.mode === "social" ? "px-3" : "w-10"} ${motion}`}
                       style={{
                         ...cardStyle,
                         animationDelay: motionDisabled ? undefined : `${index * 70}ms`
                       }}
                     >
                       <ProfileIcon name={social.platform} />
+                      {profile.mode === "social" && (
+                        <span className="ml-2 text-xs capitalize">{social.platform}</span>
+                      )}
                     </a>
                   ))}
                 </div>
@@ -557,7 +651,7 @@ export default function ProfileRenderer({
 
             {links.length > 0 && (
               <section
-                className={`${spacing.section} ${profile.mode === "portfolio" ? "order-3" : "order-2"} space-y-3`}
+                className={`profile-links ${spacing.section} ${profile.mode === "portfolio" ? "order-3" : "order-2"} space-y-3`}
               >
                 {links.length > 1 && (
                   <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
@@ -570,7 +664,7 @@ export default function ProfileRenderer({
                     href={link.url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className={`profile-link profile-surface group flex items-center justify-between border px-5 py-4 text-left text-white/90 ${motion}`}
+                    className={`profile-link profile-surface group flex items-center justify-between border px-4 py-3 text-left text-white/90 ${motion}`}
                     style={{
                       ...cardStyle,
                       animationDelay: motionDisabled ? undefined : `${index * 90}ms`
@@ -578,7 +672,7 @@ export default function ProfileRenderer({
                   >
                     <span
                       aria-hidden="true"
-                      className="mr-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.045] text-white/65"
+                      className="mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.045] text-white/65"
                     >
                       <ProfileIcon name={link.icon} />
                     </span>
@@ -601,7 +695,7 @@ export default function ProfileRenderer({
 
             {projects.length > 0 && (
               <section
-                className={`${spacing.projects} ${profile.mode === "portfolio" ? "order-2" : "order-3"}`}
+                className={`profile-projects ${spacing.projects} ${profile.mode === "portfolio" ? "order-2" : "order-3"}`}
               >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
                   Projects
@@ -631,7 +725,7 @@ export default function ProfileRenderer({
                           <div className="absolute inset-0 bg-gradient-to-t from-[#0e0d13]/50 to-transparent" />
                         </div>
                       )}
-                      <div className="p-5">
+                      <div className="p-4">
                         <div className="flex items-start justify-between gap-3">
                           <h3 className="font-semibold">{project.title}</h3>
                           <ArrowUpRight
@@ -658,6 +752,50 @@ export default function ProfileRenderer({
                         )}
                       </div>
                     </a>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {data.media.length > 0 && (
+              <section
+                className={`profile-media ${spacing.projects} order-4`}
+              >
+                <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
+                  Media
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {data.media.map((item) => (
+                    <figure
+                      key={item.id}
+                      className="profile-surface overflow-hidden border"
+                      style={cardStyle}
+                    >
+                      {item.media_type === "video" ? (
+                        <video
+                          controls
+                          preload="metadata"
+                          playsInline
+                          className="aspect-video w-full bg-black object-contain"
+                          aria-label={item.title || "Shared video"}
+                          src={item.media_url}
+                        />
+                      ) : (
+                        <Image
+                          src={item.media_url || ""}
+                          alt={item.title || "Shared image"}
+                          width={1200}
+                          height={900}
+                          unoptimized
+                          className="max-h-96 w-full object-contain"
+                        />
+                      )}
+                      {item.title && (
+                        <figcaption className="px-3 py-2 text-xs text-white/65">
+                          {item.title}
+                        </figcaption>
+                      )}
+                    </figure>
                   ))}
                 </div>
               </section>

@@ -59,6 +59,8 @@ export type Appearance = {
   avatarImageUpload: string;
   bannerImageUpload: string;
   backgroundImageUpload: string;
+  seoTitle: string;
+  seoDescription: string;
   enterText: string;
   enterBlur: number;
   enterEffect:
@@ -122,9 +124,31 @@ export type Project = {
   enabled: boolean;
 };
 
+export type ProfileMedia = {
+  id: string;
+  profile_id: string;
+  storage_path: string;
+  media_type: "image" | "video";
+  media_url?: string;
+  title: string;
+  position: number;
+  enabled: boolean;
+  created_at: string;
+};
+
+export type ProfileBadge = {
+  id: string;
+  profile_id: string;
+  kind: "verified" | "creator" | "early";
+  label: string;
+  issued_at: string;
+};
+
 export type PublicProfileData = {
   profile: Omit<Profile, "user_id">;
   links: ProfileLink[];
   socials: SocialLink[];
   projects: Project[];
+  media: ProfileMedia[];
+  badges: ProfileBadge[];
 };

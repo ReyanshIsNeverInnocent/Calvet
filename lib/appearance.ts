@@ -33,6 +33,8 @@ export const defaultAppearance: Appearance = {
   avatarImageUpload: "",
   bannerImageUpload: "",
   backgroundImageUpload: "",
+  seoTitle: "",
+  seoDescription: "",
   enterText: "click to enter",
   enterBlur: 2,
   enterEffect: "spotlight"
@@ -159,6 +161,14 @@ export function getAppearance(value: Partial<Appearance> | null | undefined): Ap
     backgroundImageUpload:
       typeof appearance.backgroundImageUpload === "string"
         ? appearance.backgroundImageUpload
+        : "",
+    seoTitle:
+      typeof appearance.seoTitle === "string"
+        ? appearance.seoTitle.trim().slice(0, 70)
+        : "",
+    seoDescription:
+      typeof appearance.seoDescription === "string"
+        ? appearance.seoDescription.trim().slice(0, 160)
         : "",
     enterText:
       typeof appearance.enterText === "string" ? appearance.enterText : defaultAppearance.enterText,

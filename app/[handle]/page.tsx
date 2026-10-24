@@ -24,19 +24,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const description =
-    data.profile.bio || `${data.profile.display_name}'s profile`;
+    data.profile.appearance.seoDescription ||
+    data.profile.bio ||
+    `${data.profile.display_name}'s profile`;
+  const title =
+    data.profile.appearance.seoTitle ||
+    `${data.profile.display_name} (@${data.profile.username})`;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   return {
-    title: {
-      absolute: `${data.profile.display_name} (@${data.profile.username})`
-    },
+    title: { absolute: title },
     description,
     alternates: {
       canonical: `${siteUrl}/@${data.profile.username}`
     },
     openGraph: {
-      title: data.profile.display_name,
+      title,
       description,
       type: "profile",
       images:
@@ -46,7 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary",
-      title: data.profile.display_name,
+      title,
       description
     }
   };

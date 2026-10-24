@@ -12,8 +12,13 @@ the selected surface styling is shared by the profile box and its content
 cards. The appearance editor starts with Glass, Neon, and Minimal presets and
 four page layouts; detailed color, surface, motion, and entrance controls stay
 collapsed until needed. Portfolio layout widens the page and puts projects
-before links. The dashboard preview uses the same renderer as the
-public profile and updates as profile content is edited. Link URLs get local
+before links, while Social uses a compact grid with visible platform labels.
+Public profile headers use a tighter layout and show location, pronouns, and
+status with compact icons and hover labels. Search and sharing titles and
+descriptions can be customized in Settings, with profile details used as
+defaults. The dashboard preview uses the same renderer as the public profile
+and updates as profile content is edited.
+Link URLs get local
 provider/title/icon suggestions, and links can be reordered with accessible
 controls; these features do not rely on paid APIs or services. Built-in
 animation, aurora/grid background, and card glow/gradient controls are also
@@ -70,7 +75,7 @@ The SQL files in `supabase/migrations` are versioned database changes. They do
 not run automatically just because they are in this repository.
 
 For a **new Supabase project**, open **SQL Editor** and run each migration file
-in numeric order (`001` through `010`). You can also
+in numeric order (`001` through `011`). You can also
 apply them with the Supabase CLI if you have linked the project.
 
 The application chrome (homepage, login, and dashboard) uses dark mode. Each
@@ -98,11 +103,38 @@ backwards-compatible fallbacks.
 Avatar, banner, background, project, and music-cover images can be uploaded
 directly in the dashboard. Avatar and music-cover uploads include a draggable
 1:1 crop and zoom step; banners use 3:1. Uploaded images replace any older
-configured image links when displayed. Image uploads use the public
-`profile-music` bucket from migrations `008` and `009`.
+configured image links when displayed. These uploads use the public
+`profile-music` bucket from migrations `008` and `009`; profile gallery images
+and videos use the separate `creator-media` bucket from migration `011`.
 
-Afterward, confirm the `profiles`, `links`, `social_links`, and `projects` tables
+Migration `011` adds aggregate daily public-profile views, a separate
+`creator-media` bucket for JPG/PNG/WebP images and MP4/WebM videos (15 MB per
+file), and administrator-issued profile badges. It does not store visitor IP
+addresses or identifiers; repeat profile opens in the same browser tab session
+are deduplicated in session storage. View totals are approximate and can be
+inflated by automated or direct RPC requests. Media is publicly accessible
+once uploaded, so only share content intended for public viewing. The new
+bucket has owner-folder upload/update/delete policies and does not change
+permissions on `profile-music`. Badge rows have no client write grant or policy;
+trusted administrators must issue or revoke them through the Supabase SQL
+Editor after reviewing the profile. Run migration `011` once on an existing
+project before using the media or analytics dashboard.
+
+Afterward, confirm the profile, content, analytics, badge, and media tables
 exist and keep Row Level Security enabled.
+
+To issue a badge, a trusted administrator can insert it from the Supabase SQL
+Editor using the profile's username. For example:
+
+```sql
+insert into public.profile_badges (profile_id, kind, label)
+select id, 'verified', 'Verified'
+from public.profiles
+where username = 'example';
+```
+
+Use `kind` values `verified`, `creator`, or `early`. Users cannot create or
+change badge rows through the app.
 
 Email signups choose a username before creating an account. Provider sign-ins
 choose one after authentication if they do not already have a profile. Usernames

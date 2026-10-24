@@ -25,7 +25,7 @@ export async function getPublicProfile(
     return null;
   }
 
-  const [linksResult, socialsResult, projectsResult] =
+  const [linksResult, socialsResult, projectsResult, mediaResult, badgesResult] =
     await Promise.all([
       supabase
         .from("links")
@@ -44,14 +44,33 @@ export async function getPublicProfile(
         .select("*")
         .eq("profile_id", profile.id)
         .eq("enabled", true)
-        .order("position")
+        .order("position"),
+      supabase
+        .from("profile_media")
+        .select("*")
+        .eq("profile_id", profile.id)
+        .eq("enabled", true)
+        .order("position"),
+      supabase
+        .from("profile_badges")
+        .select("*")
+        .eq("profile_id", profile.id)
+        .order("issued_at")
     ]);
 
-  if (linksResult.error || socialsResult.error || projectsResult.error) {
+  if (
+    linksResult.error ||
+    socialsResult.error ||
+    projectsResult.error ||
+    mediaResult.error ||
+    badgesResult.error
+  ) {
     const messages = [
       linksResult.error?.message,
       socialsResult.error?.message,
-      projectsResult.error?.message
+      projectsResult.error?.message,
+      mediaResult.error?.message,
+      badgesResult.error?.message
     ].filter(Boolean);
     throw new Error(`Unable to load public profile content: ${messages.join("; ")}`);
   }
@@ -63,6 +82,13 @@ export async function getPublicProfile(
     },
     links: linksResult.data ?? [],
     socials: socialsResult.data ?? [],
-    projects: projectsResult.data ?? []
+    projects: projectsResult.data ?? [],
+    media: (mediaResult.data ?? []).map((media) => ({
+      ...media,
+      media_url: supabase.storage
+        .from("creator-media")
+        .getPublicUrl(media.storage_path).data.publicUrl
+    })),
+    badges: badgesResult.data ?? []
   };
 }
