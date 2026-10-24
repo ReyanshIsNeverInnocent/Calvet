@@ -69,7 +69,6 @@ BADGE_STYLES entry.
 
 function BowTieIcon({
   size = 24,
-  strokeWidth = 2,
   ...props
 }: LucideProps) {
   return (
@@ -78,14 +77,11 @@ function BowTieIcon({
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
     >
-      <path d="M3 7.5 11.5 12 3 16.5V7.5Z" />
-      <path d="m21 7.5-8.5 4.5 8.5 4.5V7.5Z" />
+      <path d="M2.5 6.5 10 10v4l-7.5 3.5A1 1 0 0 1 1 16.6V7.4a1 1 0 0 1 1.5-.9Z" />
+      <path d="m21.5 6.5-7.5 3.5v4l7.5 3.5a1 1 0 0 0 1.5-.9V7.4a1 1 0 0 0-1.5-.9Z" />
+      <rect x="9.5" y="9" width="5" height="6" rx="1.25" />
     </svg>
   );
 }
