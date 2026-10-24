@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   ArrowDown,
+  Award,
   ArrowUp,
   BarChart3,
   ExternalLink,
@@ -1239,6 +1240,15 @@ export default function DashboardClient({
               View page
               <ExternalLink size={14} />
             </a>
+            {profile.username === "whatthefuck" && (
+              <Link
+                href="/admin/badges"
+                className="inline-flex items-center gap-2 rounded-full border border-[#292b24]/10 bg-[#fffdf7] px-4 py-2 text-sm font-semibold hover:bg-[#e6edb9]"
+              >
+                <Award size={16} />
+                Manage badges
+              </Link>
+            )}
             <SignOutButton />
           </div>
         </div>

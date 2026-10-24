@@ -1,4 +1,6 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import BadgeManager, { type ManagedBadge } from "./BadgeManager";
 
@@ -77,6 +79,13 @@ export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
   return (
     <main className="min-h-screen bg-[#08080b] px-5 py-12 text-[#f5f3fa] sm:px-8">
       <section className="mx-auto w-full max-w-2xl">
+        <Link
+          href="/dashboard"
+          className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
+        >
+          <ArrowLeft size={15} />
+          Back to dashboard
+        </Link>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
           Calvet administration
         </p>
