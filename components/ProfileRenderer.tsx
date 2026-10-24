@@ -760,58 +760,78 @@ export default function ProfileRenderer({
                   Projects
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {projects.map((project, index) => (
-                    <a
-                      key={project.id}
-                      href={project.url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className={`project-card profile-surface group overflow-hidden border ${motion}`}
-                      style={{
-                        ...cardStyle,
-                        animationDelay: motionDisabled ? undefined : `${index * 110}ms`
-                      }}
-                    >
-                      {(project.image_upload_url || project.image_url) && (
-                        <div className="relative h-36 overflow-hidden">
-                          <Image
-                            src={project.image_upload_url || project.image_url}
-                            alt=""
-                            fill
-                            unoptimized
-                            className="object-cover transition duration-500 group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-[#0e0d13]/50 to-transparent" />
-                        </div>
-                      )}
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <h3 className="font-semibold">{project.title}</h3>
-                          <ArrowUpRight
-                            size={16}
-                            className="shrink-0 text-white/35 transition group-hover:text-white"
-                          />
-                        </div>
-                        {project.description && (
-                          <p className="mt-2 text-sm leading-6 text-white/45">
-                            {project.description}
-                          </p>
-                        )}
-                        {project.tags.length > 0 && (
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            {project.tags.map((tag) => (
-                              <span
-                                key={tag}
-                                className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-xs text-white/55"
-                              >
-                                {tag}
-                              </span>
-                            ))}
+                  {projects.map((project, index) => {
+                    const projectCardClass = `project-card profile-surface group overflow-hidden border ${motion}`;
+                    const projectCardStyle = {
+                      ...cardStyle,
+                      animationDelay: motionDisabled ? undefined : `${index * 110}ms`
+                    };
+                    const projectCardContent = (
+                      <>
+                        {(project.image_upload_url || project.image_url) && (
+                          <div className="relative h-36 overflow-hidden">
+                            <Image
+                              src={project.image_upload_url || project.image_url}
+                              alt=""
+                              fill
+                              unoptimized
+                              className="object-cover transition duration-500 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#0e0d13]/50 to-transparent" />
                           </div>
                         )}
-                      </div>
-                    </a>
-                  ))}
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <h3 className="font-semibold">{project.title}</h3>
+                            {project.url && (
+                              <ArrowUpRight
+                                size={16}
+                                className="shrink-0 text-white/35 transition group-hover:text-white"
+                              />
+                            )}
+                          </div>
+                          {project.description && (
+                            <p className="mt-2 text-sm leading-6 text-white/45">
+                              {project.description}
+                            </p>
+                          )}
+                          {project.tags.length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {project.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-xs text-white/55"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+
+                    return project.url ? (
+                      <a
+                        key={project.id}
+                        href={project.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className={projectCardClass}
+                        style={projectCardStyle}
+                      >
+                        {projectCardContent}
+                      </a>
+                    ) : (
+                      <article
+                        key={project.id}
+                        className={projectCardClass}
+                        style={projectCardStyle}
+                      >
+                        {projectCardContent}
+                      </article>
+                    );
+                  })}
                 </div>
               </section>
             )}

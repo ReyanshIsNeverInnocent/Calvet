@@ -999,7 +999,7 @@ export default function DashboardClient({
         profile_id: profile.id,
         title: "New project",
         description: "",
-        url: "https://example.com",
+        url: "",
         image_url: "",
         image_upload_url: "",
         tags: [],
@@ -1040,7 +1040,11 @@ export default function DashboardClient({
       return;
     }
 
-    if (patch.url !== undefined && !urlSchema.safeParse(patch.url).success) {
+    if (
+      patch.url !== undefined &&
+      patch.url.trim() !== "" &&
+      !urlSchema.safeParse(patch.url).success
+    ) {
       setNotice("Enter a valid HTTP or HTTPS project URL.");
       return;
     }
@@ -2690,9 +2694,11 @@ export default function DashboardClient({
                       </label>
 
                       <label className="text-xs font-semibold text-black/45">
-                        PROJECT URL
+                        PROJECT URL (OPTIONAL)
                         <input
                           value={project.url}
+                          type="url"
+                          placeholder="https://example.com"
                           onChange={(event) =>
                             setProjects((current) =>
                               current.map((item) =>
@@ -3221,7 +3227,9 @@ function createPreviewData(
       (social) => social.enabled && urlSchema.safeParse(social.url).success
     ),
     projects: projects.filter(
-      (project) => project.enabled && urlSchema.safeParse(project.url).success
+      (project) =>
+        project.enabled &&
+        (project.url.trim() === "" || urlSchema.safeParse(project.url).success)
     ),
     media: media.filter((item) => item.enabled),
     badges

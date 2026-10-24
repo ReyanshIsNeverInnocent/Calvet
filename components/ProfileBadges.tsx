@@ -72,18 +72,17 @@ function BowTieIcon({
   ...props
 }: LucideProps) {
   return (
-    <svg
+    <span
       {...props}
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor"
+      aria-hidden="true"
+      style={{
+        fontSize: size,
+        lineHeight: 1,
+        filter: "hue-rotate(25deg) saturate(1.5)"
+      }}
     >
-      <path d="M10.1 10.5C7.2 7.4 3.3 5.1 2 6.7c-1.5 1.8 1.7 5.3 8.6 7.4l.7-3.6Z" />
-      <path d="M13.9 10.5c2.9-3.1 6.8-5.4 8.1-3.8 1.5 1.8-1.7 5.3-8.6 7.4l-.7-3.6Z" />
-      <path d="m10.2 13.1-1.1 7 3.1-1.8 1.8 2.3.8-7.5-4.6-2.1Zm3.6 0 1.1 7-3.1-1.8L10 20.6l-.8-7.5 4.6-2.1Z" />
-      <path d="M9.2 9.9c0-1.2 1.2-2.1 2.8-2.1s2.8.9 2.8 2.1v3.3c0 1.2-1.2 2.1-2.8 2.1s-2.8-.9-2.8-2.1V9.9Z" />
-    </svg>
+      🎀
+    </span>
   );
 }
 
