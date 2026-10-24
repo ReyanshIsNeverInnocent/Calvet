@@ -1131,7 +1131,7 @@ a {
 .profile-music {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 16px 38px rgba(0,0,0,.2);
   transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
 }
@@ -1140,6 +1140,7 @@ a {
   position: absolute;
   z-index: -1;
   inset: 0;
+  border-radius: inherit;
   background:
     radial-gradient(ellipse at 8% 100%, color-mix(in srgb, var(--profile-accent-color) 22%, transparent), transparent 48%),
     linear-gradient(112deg, rgba(255,255,255,.045), transparent 44%, rgba(255,255,255,.025));
@@ -1161,6 +1162,20 @@ a {
 .profile-music-main {
   position: relative;
   z-index: 1;
+}
+
+.profile-music .profile-detail-tooltip {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.profile-music .profile-detail-tooltip-trigger {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profile-music-art {

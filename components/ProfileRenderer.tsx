@@ -480,6 +480,7 @@ export default function ProfileRenderer({
                     ref={audioRef}
                     preload="auto"
                     src={musicUrl}
+                    loop={musicTracks.length === 1}
                     onTimeUpdate={(event) => syncAudioProgress(event.currentTarget)}
                     onLoadedMetadata={(event) => syncAudioProgress(event.currentTarget)}
                     onDurationChange={(event) => syncAudioProgress(event.currentTarget)}
@@ -530,7 +531,7 @@ export default function ProfileRenderer({
                           {formatTime(currentTime)} <span className="text-white/20">/</span> {formatTime(duration)}
                         </span>
                       </div>
-                      <p className="mt-1 truncate text-sm font-semibold tracking-tight sm:mt-2 sm:text-base">
+                      <p className="mt-1 min-w-0 text-sm font-semibold tracking-tight sm:mt-2 sm:text-base">
                         <span className="profile-detail-tooltip">
                           <span
                             tabIndex={0}
@@ -549,7 +550,7 @@ export default function ProfileRenderer({
                           </span>
                         </span>
                       </p>
-                      <p className="mt-0.5 truncate text-[11px] text-white/50 sm:text-xs">
+                      <p className="mt-0.5 min-w-0 text-[11px] text-white/50 sm:text-xs">
                         <span className="profile-detail-tooltip">
                           <span
                             tabIndex={0}
@@ -564,7 +565,7 @@ export default function ProfileRenderer({
                             role="tooltip"
                             className="profile-detail-tooltip-popover"
                           >
-                            Artist
+                            Song artist
                           </span>
                         </span>
                       </p>
