@@ -345,7 +345,7 @@ export default function DashboardClient({
         .map((badge, position) => ({
           id: badge.id,
           is_visible: badge.is_visible,
-          position
+          display_order: position
         }))
     });
 

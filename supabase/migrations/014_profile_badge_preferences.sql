@@ -43,7 +43,7 @@ begin
   if (
     select count(*) <> count(distinct preferences.id)
     from jsonb_to_recordset(p_preferences)
-      as preferences(id uuid, is_visible boolean, position integer)
+      as preferences(id uuid, is_visible boolean, display_order integer)
   ) then
     raise exception 'Badge preferences contain duplicate badge IDs';
   end if;
@@ -51,14 +51,14 @@ begin
   if exists (
     select 1
     from jsonb_to_recordset(p_preferences)
-      as preferences(id uuid, is_visible boolean, position integer)
+      as preferences(id uuid, is_visible boolean, display_order integer)
     left join public.profile_badges as badges
       on badges.id = preferences.id
       and badges.profile_id = target_profile_id
     where badges.id is null
       or preferences.is_visible is null
-      or preferences.position is null
-      or preferences.position < 0
+      or preferences.display_order is null
+      or preferences.display_order < 0
   ) then
     raise exception 'Badge preferences contain invalid values';
   end if;
@@ -66,9 +66,9 @@ begin
   update public.profile_badges as badges
   set
     is_visible = preferences.is_visible,
-    position = preferences.position
+    position = preferences.display_order
   from jsonb_to_recordset(p_preferences)
-    as preferences(id uuid, is_visible boolean, position integer)
+    as preferences(id uuid, is_visible boolean, display_order integer)
   where badges.id = preferences.id
     and badges.profile_id = target_profile_id;
 end;
@@ -90,7 +90,7 @@ returns table (
   kind text,
   label text,
   is_visible boolean,
-  position integer,
+  display_order integer,
   issued_at timestamptz
 )
 language plpgsql
@@ -152,7 +152,7 @@ begin
   if (
     select count(*) <> count(distinct preferences.id)
     from jsonb_to_recordset(p_preferences)
-      as preferences(id uuid, is_visible boolean, position integer)
+      as preferences(id uuid, is_visible boolean, display_order integer)
   ) then
     raise exception 'Badge preferences contain duplicate badge IDs';
   end if;
@@ -160,14 +160,14 @@ begin
   if exists (
     select 1
     from jsonb_to_recordset(p_preferences)
-      as preferences(id uuid, is_visible boolean, position integer)
+      as preferences(id uuid, is_visible boolean, display_order integer)
     left join public.profile_badges as badges
       on badges.id = preferences.id
       and badges.profile_id = target_profile_id
     where badges.id is null
       or preferences.is_visible is null
-      or preferences.position is null
-      or preferences.position < 0
+      or preferences.display_order is null
+      or preferences.display_order < 0
   ) then
     raise exception 'Badge preferences contain invalid values';
   end if;
@@ -175,9 +175,9 @@ begin
   update public.profile_badges as badges
   set
     is_visible = preferences.is_visible,
-    position = preferences.position
+    position = preferences.display_order
   from jsonb_to_recordset(p_preferences)
-    as preferences(id uuid, is_visible boolean, position integer)
+    as preferences(id uuid, is_visible boolean, display_order integer)
   where badges.id = preferences.id
     and badges.profile_id = target_profile_id;
 end;

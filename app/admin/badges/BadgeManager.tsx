@@ -66,7 +66,7 @@ export default function BadgeManager({
         p_preferences: orderedBadges.map(({ id, is_visible, position }) => ({
           id,
           is_visible,
-          position
+          display_order: position
         }))
       }
     );

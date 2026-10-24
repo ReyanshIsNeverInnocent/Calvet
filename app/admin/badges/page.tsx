@@ -18,7 +18,7 @@ type AdminBadgeRow = {
   kind: string | null;
   label: string | null;
   is_visible: boolean | null;
-  position: number | null;
+  display_order: number | null;
   issued_at: string | null;
 };
 
@@ -74,7 +74,7 @@ export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
               kind: row.kind ?? "",
               label: row.label ?? "",
               is_visible: row.is_visible ?? true,
-              position: row.position ?? 0
+              position: row.display_order ?? 0
             }]
           : []
       );
