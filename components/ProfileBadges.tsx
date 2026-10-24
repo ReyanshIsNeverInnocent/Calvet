@@ -11,8 +11,10 @@ import type { CSSProperties } from "react";
 import type { ProfileBadge } from "@/types/profile";
 
 /*
-Manage badges in Supabase Dashboard > SQL Editor. Migrations 011 and 012 must
-have been applied first. Replace 'account' with the profile's exact username.
+For the simpler admin interface, sign in as @whatthefuck and visit
+/admin/badges after applying migration 013. SQL Editor instructions follow as
+an alternative. Migrations 011 and 012 must also be applied first. Replace
+'account' with the profile's exact username.
 
 Add a badge:
 INSERT INTO public.profile_badges (profile_id, kind, label)
@@ -48,6 +50,13 @@ WHERE b.profile_id = p.id
   AND p.username = 'account'
   AND b.kind = 'custom-kind';
 
+Remove an old creator badge from one profile:
+DELETE FROM public.profile_badges b
+USING public.profiles p
+WHERE b.profile_id = p.id
+  AND p.username = 'account'
+  AND b.kind = 'creator';
+
 Built-in kinds: verified, founder, early, official-demo, developer, and
 the-one-and-only. Custom kinds must be 1-40 characters. Add a matching entry
 to BADGE_STYLES to choose its icon and color; otherwise the badge uses the
@@ -64,11 +73,12 @@ const BADGE_STYLES: Record<string, { Icon: LucideIcon; color: string }> = {
 };
 
 export default function ProfileBadges({ badges }: { badges: ProfileBadge[] }) {
-  if (badges.length === 0) return null;
+  const visibleBadges = badges.filter((badge) => badge.kind !== "creator");
+  if (visibleBadges.length === 0) return null;
 
   return (
     <div className="profile-badges flex items-center gap-1">
-      {badges.map((badge) => {
+      {visibleBadges.map((badge) => {
         const { Icon, color } = BADGE_STYLES[badge.kind] ?? {
           Icon: Sparkles,
           color: "#a99bff"
