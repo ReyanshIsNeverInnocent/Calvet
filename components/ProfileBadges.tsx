@@ -76,8 +76,7 @@ function BowTieIcon({
       aria-hidden="true"
       style={{
         fontSize: size,
-        lineHeight: 1,
-        filter: "hue-rotate(25deg) saturate(1.5)"
+        lineHeight: 1
       }}
     >
       🎀
