@@ -361,7 +361,25 @@ export default function ProfileRenderer({
                   accentColor={appearance.accentColor}
                 />
               </h1>
-              <p className="mt-1 text-sm text-white/40">@{profile.username}</p>
+              <p className="mt-1 text-sm text-white/40">
+                <span className="profile-detail-tooltip">
+                  <span
+                    tabIndex={0}
+                    aria-label={`Username: ${profile.username}`}
+                    aria-describedby={`profile-username-tooltip-${profile.id}`}
+                    className="profile-detail-tooltip-trigger"
+                  >
+                    @{profile.username}
+                  </span>
+                  <span
+                    id={`profile-username-tooltip-${profile.id}`}
+                    role="tooltip"
+                    className="profile-detail-tooltip-popover"
+                  >
+                    Username
+                  </span>
+                </span>
+              </p>
 
               {data.badges.length > 0 && (
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
@@ -540,10 +558,42 @@ export default function ProfileRenderer({
                         </span>
                       </div>
                       <p className="mt-1 truncate text-sm font-semibold tracking-tight sm:mt-2 sm:text-base">
-                        {activeTrack?.title || "on repeat"}
+                        <span className="profile-detail-tooltip">
+                          <span
+                            tabIndex={0}
+                            aria-label={`Song title: ${activeTrack?.title || "on repeat"}`}
+                            aria-describedby={`profile-song-title-tooltip-${profile.id}`}
+                            className="profile-detail-tooltip-trigger"
+                          >
+                            {activeTrack?.title || "on repeat"}
+                          </span>
+                          <span
+                            id={`profile-song-title-tooltip-${profile.id}`}
+                            role="tooltip"
+                            className="profile-detail-tooltip-popover"
+                          >
+                            Song title
+                          </span>
+                        </span>
                       </p>
                       <p className="mt-0.5 truncate text-[11px] text-white/50 sm:text-xs">
-                        {activeTrack?.artist || profile.display_name}
+                        <span className="profile-detail-tooltip">
+                          <span
+                            tabIndex={0}
+                            aria-label={`Artist: ${activeTrack?.artist || profile.display_name}`}
+                            aria-describedby={`profile-song-artist-tooltip-${profile.id}`}
+                            className="profile-detail-tooltip-trigger"
+                          >
+                            {activeTrack?.artist || profile.display_name}
+                          </span>
+                          <span
+                            id={`profile-song-artist-tooltip-${profile.id}`}
+                            role="tooltip"
+                            className="profile-detail-tooltip-popover"
+                          >
+                            Artist
+                          </span>
+                        </span>
                       </p>
                       {playbackError && (
                         <p className="mt-1 text-[10px] text-white/55">
