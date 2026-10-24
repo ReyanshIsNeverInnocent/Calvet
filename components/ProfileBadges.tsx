@@ -6,10 +6,9 @@ import {
   Crown,
   Infinity,
   Sparkles,
-  type LucideIcon,
-  type LucideProps
+  type LucideIcon
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, HTMLAttributes } from "react";
 import type { ProfileBadge } from "@/types/profile";
 
 /*
@@ -70,7 +69,7 @@ BADGE_STYLES entry.
 function BowTieIcon({
   size = 24,
   ...props
-}: LucideProps) {
+}: HTMLAttributes<HTMLSpanElement> & { size?: number | string }) {
   return (
     <span
       {...props}
@@ -126,7 +125,11 @@ export default function ProfileBadges({ badges }: { badges: ProfileBadge[] }) {
               className="profile-badge-icon"
               style={{ "--badge-color": color } as CSSProperties}
             >
-              <Icon aria-hidden="true" size={17} strokeWidth={2.4} />
+              {Icon === BowTieIcon ? (
+                <Icon aria-hidden="true" size={17} />
+              ) : (
+                <Icon aria-hidden="true" size={17} strokeWidth={2.4} />
+              )}
             </span>
             <span
               id={`profile-badge-tooltip-${badge.id}`}
