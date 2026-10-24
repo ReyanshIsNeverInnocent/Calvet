@@ -23,6 +23,7 @@ export type MusicTrack = {
   title: string;
   artist: string;
   coverUrl: string;
+  coverImageUrl?: string;
 };
 
 export type Appearance = {
@@ -32,6 +33,14 @@ export type Appearance = {
   backgroundColor: string;
   backgroundImage: string;
   cardOpacity: number;
+  surfaceStyle: "glass" | "solid" | "gradient";
+  surfaceColor: string;
+  surfaceBlur: number;
+  surfaceBorderColor: string;
+  surfaceBorderOpacity: number;
+  surfaceBorderWidth: number;
+  surfaceRadius: number;
+  surfaceHighlight: boolean;
   radius: "small" | "medium" | "large";
   shadow: boolean;
   font: "inter" | "system" | "serif";
@@ -47,7 +56,11 @@ export type Appearance = {
   musicArtist: string;
   musicCoverUrl: string;
   musicTracks: MusicTrack[];
+  avatarImageUpload: string;
+  bannerImageUpload: string;
+  backgroundImageUpload: string;
   enterText: string;
+  enterBlur: number;
   enterEffect:
     | "none"
     | "spotlight"
@@ -103,6 +116,7 @@ export type Project = {
   description: string;
   url: string;
   image_url: string;
+  image_upload_url: string;
   tags: string[];
   position: number;
   enabled: boolean;

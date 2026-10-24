@@ -5,7 +5,14 @@
 Calvet is a dark-mode profile page builder built with Next.js, TypeScript,
 Tailwind CSS, Supabase Auth, and PostgreSQL. Profiles can customize their
 accent, dark background color or background image, typography, card shape,
-spacing, and animation. The dashboard preview uses the same renderer as the
+spacing, animation, and configurable glass, solid, or gradient profile
+surfaces. Surface tint and opacity, glass blur, border color/opacity/thickness,
+corner radius, edge highlight, and shadow can be adjusted and previewed live;
+the selected surface styling is shared by the profile box and its content
+cards. The appearance editor starts with Glass, Neon, and Minimal presets and
+four page layouts; detailed color, surface, motion, and entrance controls stay
+collapsed until needed. Portfolio layout widens the page and puts projects
+before links. The dashboard preview uses the same renderer as the
 public profile and updates as profile content is edited. Link URLs get local
 provider/title/icon suggestions, and links can be reordered with accessible
 controls; these features do not rely on paid APIs or services. Built-in
@@ -23,11 +30,14 @@ removing tracks. Embedded title, artist, and cover metadata are used when
 available. Track titles and artists can be edited, and an optional cover image
 can replace embedded artwork. Uploaded audio and cover images use a public
 Supabase Storage bucket so they can display on public profiles. Public profiles
-open with a customizable click-to-enter screen.
-Choose a soft spotlight, glitch, sparkles, aurora, snow, or rain effect for the
-screen. That first click starts the track when music is set, subject to browser
-audio autoplay rules. The player uses custom previous, play/pause, next, seek,
-mute, and hover-to-adjust volume controls.
+open with a customizable click-to-enter screen, including an adjustable
+background blur. Choose a soft spotlight, glitch, sparkles, aurora, snow, or
+rain effect for the screen. That first click starts the track when music is set,
+subject to browser audio autoplay rules. The player uses custom previous,
+play/pause, next, seek, mute, and hover-to-adjust volume controls. The editable
+homepage profile showcase is configured in `lib/home-demo-profile.ts`; `/demo`
+is an alias for the live username `demo` profile, so it shows the same account
+as `/@demo`.
 
 ## Requirements
 
@@ -60,7 +70,7 @@ The SQL files in `supabase/migrations` are versioned database changes. They do
 not run automatically just because they are in this repository.
 
 For a **new Supabase project**, open **SQL Editor** and run each migration file
-in numeric order (`001` through `009`). You can also
+in numeric order (`001` through `010`). You can also
 apply them with the Supabase CLI if you have linked the project.
 
 The application chrome (homepage, login, and dashboard) uses dark mode. Each
@@ -82,7 +92,14 @@ and delete access. Uploaded audio is accessible to anyone with its public file
 URL, so only upload music you have permission to share. Migration `009` allows
 JPG, PNG, and WebP cover images in that bucket. Run each new migration once on
 an existing project. Do not rerun
-`001_initial.sql` on an already-set-up database.
+`001_initial.sql` on an already-set-up database. Migration `010` adds a separate
+uploaded-image field for project cards, retaining existing image links as
+backwards-compatible fallbacks.
+Avatar, banner, background, project, and music-cover images can be uploaded
+directly in the dashboard. Avatar and music-cover uploads include a draggable
+1:1 crop and zoom step; banners use 3:1. Uploaded images replace any older
+configured image links when displayed. Image uploads use the public
+`profile-music` bucket from migrations `008` and `009`.
 
 Afterward, confirm the `profiles`, `links`, `social_links`, and `projects` tables
 exist and keep Row Level Security enabled.

@@ -25,6 +25,8 @@ import UsernameEffect from "@/components/UsernameEffect";
 import { isHttpUrl } from "@/lib/music";
 import type { PublicProfileData } from "@/types/profile";
 
+const MAX_AUDIO_VOLUME = 0.5;
+
 function ProfileIcon({ name, size = 18 }: { name: string; size?: number }) {
   const normalized = name.toLowerCase();
 
@@ -49,6 +51,10 @@ export default function ProfileRenderer({
 }) {
   const { profile, links, socials, projects } = data;
   const appearance = profile.appearance;
+  const avatarImage = appearance.avatarImageUpload || profile.avatar_url;
+  const bannerImage = appearance.bannerImageUpload || profile.banner_url;
+  const backgroundImage =
+    appearance.backgroundImageUpload || appearance.backgroundImage;
   const radius =
     appearance.radius === "small"
       ? "rounded-xl"
@@ -56,11 +62,17 @@ export default function ProfileRenderer({
         ? "rounded-[1.6rem]"
         : "rounded-2xl";
   const spacing =
-    appearance.spacing === "compact"
+    profile.mode === "minimal" || appearance.spacing === "compact"
       ? { page: "py-8 sm:py-12", section: "mt-8", projects: "mt-10" }
       : appearance.spacing === "airy"
         ? { page: "py-16 sm:py-24", section: "mt-16", projects: "mt-20" }
         : { page: "py-10 sm:py-16", section: "mt-12", projects: "mt-14" };
+  const layoutWidth =
+    profile.mode === "portfolio"
+      ? "max-w-4xl"
+      : profile.mode === "minimal" || profile.mode === "social"
+        ? "max-w-xl"
+        : "max-w-2xl";
   const motionDisabled =
     appearance.reducedMotion ||
     appearance.animation === "none";
@@ -76,21 +88,39 @@ export default function ProfileRenderer({
   const cardEffect =
     appearance.cardEffect === "glow"
       ? "profile-panel-glow"
-      : appearance.cardEffect === "gradient"
-        ? "profile-panel-gradient"
-        : "";
+      : "";
   const fontFamily =
     appearance.font === "serif"
       ? '"DM Serif Display", Georgia, serif'
       : appearance.font === "system"
         ? "system-ui, sans-serif"
         : "Inter, Arial, sans-serif";
-  const cardStyle = {
-    backgroundColor: `color-mix(in srgb, ${appearance.backgroundColor} ${appearance.cardOpacity * 100}%, #111017)`,
+  const surfaceColor = appearance.surfaceColor;
+  const surfaceBackground =
+    appearance.surfaceStyle === "solid"
+      ? `color-mix(in srgb, ${surfaceColor} ${appearance.cardOpacity * 100}%, transparent)`
+      : appearance.surfaceStyle === "gradient"
+        ? `linear-gradient(135deg, color-mix(in srgb, color-mix(in srgb, ${appearance.accentColor} 24%, ${surfaceColor}) ${appearance.cardOpacity * 100}%, transparent), color-mix(in srgb, ${surfaceColor} ${appearance.cardOpacity * 100}%, transparent) 70%)`
+        : `color-mix(in srgb, ${surfaceColor} ${appearance.cardOpacity * 100}%, transparent)`;
+  const cardStyle: CSSProperties = {
+    background: surfaceBackground,
+    "--surface-fallback": `color-mix(in srgb, ${surfaceColor} ${Math.max(appearance.cardOpacity * 100, 28)}%, #111017)`,
+    backdropFilter:
+      appearance.surfaceStyle === "glass"
+        ? `blur(${appearance.surfaceBlur}px)`
+        : undefined,
+    WebkitBackdropFilter:
+      appearance.surfaceStyle === "glass"
+        ? `blur(${appearance.surfaceBlur}px)`
+        : undefined,
+    borderColor: `color-mix(in srgb, ${appearance.surfaceBorderColor} ${appearance.surfaceBorderOpacity * 100}%, transparent)`,
+    borderWidth: `${appearance.surfaceBorderWidth}px`,
+    borderStyle: "solid",
+    borderRadius: `${appearance.surfaceRadius}px`,
     boxShadow: appearance.shadow
-      ? "0 18px 48px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.055)"
+      ? "0 18px 48px rgba(0,0,0,.24)"
       : undefined
-  };
+  } as CSSProperties & { "--surface-fallback": string };
   const musicTracks =
     appearance.musicMode === "upload"
       ? appearance.musicTracks.filter((track) => isHttpUrl(track.url))
@@ -114,6 +144,7 @@ export default function ProfileRenderer({
     resumeAfterTrackChange.current = false;
     const audio = audioRef.current;
     if (!audio) return;
+    audio.volume = volume * MAX_AUDIO_VOLUME;
     void audio.play().then(
       () => {
         setPlaying(true);
@@ -123,7 +154,13 @@ export default function ProfileRenderer({
         setPlaybackError(true);
       }
     );
-  }, [activeTrackIndex]);
+  }, [activeTrackIndex, volume]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume * MAX_AUDIO_VOLUME;
+    }
+  }, [musicUrl, volume]);
 
   function syncAudioProgress(audio: HTMLAudioElement) {
     setCurrentTime(audio.currentTime);
@@ -147,6 +184,7 @@ export default function ProfileRenderer({
 
     setPlaybackError(false);
     try {
+      audio.volume = volume * MAX_AUDIO_VOLUME;
       await audio.play();
       setPlaying(true);
     } catch {
@@ -198,8 +236,8 @@ export default function ProfileRenderer({
         "--profile-text-color": appearance.textColor,
         "--profile-accent-color": appearance.accentColor,
         backgroundColor: appearance.backgroundColor,
-        backgroundImage: appearance.backgroundImage
-          ? `linear-gradient(rgba(8,8,12,.62), rgba(8,8,12,.78)), url(${appearance.backgroundImage})`
+        backgroundImage: backgroundImage
+          ? `linear-gradient(rgba(8,8,12,.62), rgba(8,8,12,.78)), url(${backgroundImage})`
           : "radial-gradient(ellipse at 50% -10%, rgba(117,82,196,.26), transparent 44%), radial-gradient(ellipse at 0% 45%, rgba(34,76,104,.12), transparent 32%)",
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -208,31 +246,39 @@ export default function ProfileRenderer({
       } as CSSProperties}
     >
       <div
-        className={`mx-auto ${preview ? "max-w-5xl py-6" : `max-w-2xl ${spacing.page}`}`}
+        className={`mx-auto ${preview ? "max-w-5xl py-6" : `${layoutWidth} ${spacing.page}`}`}
       >
         <article
-          className={`profile-panel relative overflow-hidden border border-white/[0.09] p-5 shadow-[0_30px_100px_rgba(0,0,0,.38)] backdrop-blur-xl sm:p-9 ${radius} ${cardEffect}`}
+          className={`profile-panel profile-surface relative overflow-hidden border p-5 sm:p-9 ${cardEffect}`}
           style={{
-            backgroundColor: `color-mix(in srgb, ${appearance.backgroundColor} ${appearance.cardOpacity * 100}%, #111017)`,
-            borderColor: `${appearance.accentColor}45`
-          }}
+            ...cardStyle,
+            "--surface-highlight": appearance.surfaceHighlight
+              ? "inset 0 1px 0 rgba(255,255,255,.2)"
+              : "none"
+          } as CSSProperties}
         >
+          {appearance.cardEffect === "gradient" && (
+            <span aria-hidden="true" className="profile-panel-gradient-overlay" />
+          )}
+          {appearance.surfaceHighlight && (
+            <span aria-hidden="true" className="profile-surface-highlight" />
+          )}
           <span
             aria-hidden="true"
             className={`profile-accent-glow pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full opacity-20 blur-[90px] ${motionDisabled ? "" : "profile-glow-pulse"}`}
             style={{ backgroundColor: appearance.accentColor }}
           />
 
-          <div className="relative">
-            {profile.banner_url && (
+          <div className="relative flex flex-col">
+            {bannerImage && (
               <div
-                className="profile-banner-fade relative -mx-5 -mt-5 mb-0 aspect-[3/1] overflow-hidden rounded-t-[inherit] sm:-mx-9 sm:-mt-9"
+                className="profile-banner-fade relative order-0 -mx-5 -mt-5 mb-0 aspect-[3/1] overflow-hidden rounded-t-[inherit] sm:-mx-9 sm:-mt-9"
                 style={{
-                  "--profile-banner-fade-color": `color-mix(in srgb, ${appearance.backgroundColor} ${appearance.cardOpacity * 100}%, #111017)`
+                  "--profile-banner-fade-color": `color-mix(in srgb, ${surfaceColor} ${appearance.cardOpacity * 100}%, transparent)`
                 } as CSSProperties}
               >
                 <Image
-                  src={profile.banner_url}
+                  src={bannerImage}
                   alt=""
                   fill
                   unoptimized
@@ -242,14 +288,14 @@ export default function ProfileRenderer({
             )}
 
             <section
-              className={`relative z-10 text-center ${
-                profile.banner_url ? "-mt-12 sm:-mt-16" : ""
+              className={`relative z-10 order-1 text-center ${
+                bannerImage ? "-mt-12 sm:-mt-16" : ""
               }`}
             >
               <div className="relative inline-block">
-                {profile.avatar_url ? (
+                {avatarImage ? (
                   <Image
-                    src={profile.avatar_url}
+                    src={avatarImage}
                     alt={`${profile.display_name} avatar`}
                     width={112}
                     height={112}
@@ -306,10 +352,10 @@ export default function ProfileRenderer({
 
               {musicUrl && (
                 <section
-                  className="profile-music mx-auto mt-7 max-w-md rounded-[1.4rem] border border-white/[0.1] p-3 text-left shadow-[0_18px_55px_rgba(0,0,0,.26)]"
+                  className="profile-music profile-surface mx-auto mt-7 max-w-md border p-3 text-left"
                   style={{
-                    background: `linear-gradient(135deg, color-mix(in srgb, ${appearance.accentColor} 13%, #111116), rgba(12,12,17,.92))`,
-                    borderColor: `${appearance.accentColor}45`
+                    ...cardStyle,
+                    borderRadius: `${Math.max(12, appearance.surfaceRadius - 6)}px`
                   }}
                   aria-label="Music player"
                 >
@@ -337,9 +383,9 @@ export default function ProfileRenderer({
                     <div
                       className={`profile-music-art relative h-14 w-14 shrink-0 overflow-hidden rounded-xl ${playing ? "is-playing" : ""}`}
                     >
-                      {activeTrack?.coverUrl ? (
+                      {activeTrack?.coverUrl || activeTrack?.coverImageUrl ? (
                         <Image
-                          src={activeTrack.coverUrl}
+                          src={activeTrack.coverUrl || activeTrack.coverImageUrl || ""}
                           alt=""
                           fill
                           unoptimized
@@ -442,7 +488,7 @@ export default function ProfileRenderer({
                         max={1}
                         step={0.01}
                         value={muted ? 0 : volume}
-                        aria-label="Music volume"
+                        aria-label="Music volume (slider maximum is 50% playback volume)"
                         disabled={preview}
                         onInput={(event) => {
                           const nextVolume = Number(event.currentTarget.value);
@@ -452,7 +498,7 @@ export default function ProfileRenderer({
                           }
                           setMuted(nextVolume === 0);
                           if (audioRef.current) {
-                            audioRef.current.volume = nextVolume;
+                            audioRef.current.volume = nextVolume * MAX_AUDIO_VOLUME;
                             audioRef.current.muted = nextVolume === 0;
                           }
                         }}
@@ -471,7 +517,8 @@ export default function ProfileRenderer({
                           if (audioRef.current) {
                             if (!nextMuted && volume === 0) {
                               setVolume(volumeBeforeMute.current);
-                              audioRef.current.volume = volumeBeforeMute.current;
+                              audioRef.current.volume =
+                                volumeBeforeMute.current * MAX_AUDIO_VOLUME;
                             }
                             audioRef.current.muted = nextMuted;
                           }
@@ -495,9 +542,9 @@ export default function ProfileRenderer({
                       target="_blank"
                       rel="noreferrer noopener"
                       aria-label={social.platform}
-                      className={`social-button flex h-11 w-11 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.035] text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${motion}`}
+                      className={`social-button profile-surface flex h-11 w-11 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${motion}`}
                       style={{
-                        borderColor: `${appearance.accentColor}35`,
+                        ...cardStyle,
                         animationDelay: motionDisabled ? undefined : `${index * 70}ms`
                       }}
                     >
@@ -509,7 +556,9 @@ export default function ProfileRenderer({
             </section>
 
             {links.length > 0 && (
-              <section className={`${spacing.section} space-y-3`}>
+              <section
+                className={`${spacing.section} ${profile.mode === "portfolio" ? "order-3" : "order-2"} space-y-3`}
+              >
                 {links.length > 1 && (
                   <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
                     Links
@@ -521,10 +570,9 @@ export default function ProfileRenderer({
                     href={link.url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className={`profile-link group flex items-center justify-between border border-white/[0.075] px-5 py-4 text-left text-white/90 ${radius} ${motion}`}
+                    className={`profile-link profile-surface group flex items-center justify-between border px-5 py-4 text-left text-white/90 ${motion}`}
                     style={{
                       ...cardStyle,
-                      borderColor: `${appearance.accentColor}35`,
                       animationDelay: motionDisabled ? undefined : `${index * 90}ms`
                     }}
                   >
@@ -552,7 +600,9 @@ export default function ProfileRenderer({
             )}
 
             {projects.length > 0 && (
-              <section className={spacing.projects}>
+              <section
+                className={`${spacing.projects} ${profile.mode === "portfolio" ? "order-2" : "order-3"}`}
+              >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
                   Projects
                 </h2>
@@ -563,16 +613,16 @@ export default function ProfileRenderer({
                       href={project.url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className={`project-card group overflow-hidden border border-white/[0.075] ${motion} ${radius}`}
+                      className={`project-card profile-surface group overflow-hidden border ${motion}`}
                       style={{
                         ...cardStyle,
                         animationDelay: motionDisabled ? undefined : `${index * 110}ms`
                       }}
                     >
-                      {project.image_url && (
+                      {(project.image_upload_url || project.image_url) && (
                         <div className="relative h-36 overflow-hidden">
                           <Image
-                            src={project.image_url}
+                            src={project.image_upload_url || project.image_url}
                             alt=""
                             fill
                             unoptimized
@@ -624,7 +674,10 @@ export default function ProfileRenderer({
           style={{
             color: appearance.textColor,
             backgroundColor: `color-mix(in srgb, ${appearance.backgroundColor} 72%, transparent)`,
-            backdropFilter: "blur(2px)",
+            backdropFilter:
+              appearance.enterBlur > 0
+                ? `blur(${appearance.enterBlur}px)`
+                : "none",
             "--enter-accent": appearance.accentColor
           } as CSSProperties}
           aria-label={appearance.enterText || "Click to enter"}

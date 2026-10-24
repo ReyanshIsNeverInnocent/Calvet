@@ -29,6 +29,7 @@ import { linkSchema, profileSchema, urlSchema } from "@/lib/validation";
 import { getAppearance } from "@/lib/appearance";
 import { linkIconOptions, suggestLink } from "@/lib/links";
 import ProfileRenderer from "@/components/ProfileRenderer";
+import ImageCropDialog from "@/components/ImageCropDialog";
 import UsernameEffect from "@/components/UsernameEffect";
 import { USERNAME_EFFECTS } from "@/types/profile";
 import type {
@@ -124,6 +125,24 @@ function readAudioMetadata(file: File): Promise<AudioMetadata> {
   });
 }
 
+type ProfileImageTarget =
+  | "avatarImageUpload"
+  | "bannerImageUpload"
+  | "backgroundImageUpload";
+
+type CropImageState =
+  | {
+      file: File;
+      imageUrl: string;
+      target: "avatarImageUpload" | "bannerImageUpload";
+    }
+  | {
+      file: File;
+      imageUrl: string;
+      target: "musicCover";
+      trackId: string;
+    };
+
 export default function DashboardClient({
   userEmail,
   initialProfile,
@@ -142,6 +161,7 @@ export default function DashboardClient({
   const [projects, setProjects] = useState(initialProjects);
   const [active, setActive] = useState<EditorSection>("profile");
   const [notice, setNotice] = useState("");
+  const [cropImage, setCropImage] = useState<CropImageState | null>(null);
   const profileSaveRevision = useRef(0);
   const profileSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const previousProfile = useRef(profile);
@@ -163,6 +183,85 @@ export default function DashboardClient({
     setProfile((current) => ({
       ...current,
       appearance: { ...current.appearance, [key]: value }
+    }));
+  }
+
+  function applyAppearancePreset(
+    preset: "glass" | "neon" | "minimal"
+  ) {
+    const presets = {
+      glass: {
+        accentColor: "#a991ff",
+        backgroundColor: "#09090d",
+        surfaceStyle: "glass",
+        surfaceColor: "#211d2b",
+        cardOpacity: 0.32,
+        surfaceBlur: 18,
+        surfaceBorderColor: "#ffffff",
+        surfaceBorderOpacity: 0.18,
+        surfaceBorderWidth: 1,
+        surfaceRadius: 26,
+        surfaceHighlight: true,
+        cardEffect: "none",
+        backgroundEffect: "none",
+        animation: "subtle"
+      },
+      neon: {
+        accentColor: "#a991ff",
+        backgroundColor: "#09090d",
+        surfaceStyle: "glass",
+        surfaceColor: "#110e1b",
+        cardOpacity: 0.48,
+        surfaceBlur: 14,
+        surfaceBorderColor: "#a991ff",
+        surfaceBorderOpacity: 0.38,
+        surfaceBorderWidth: 1,
+        surfaceRadius: 22,
+        surfaceHighlight: true,
+        cardEffect: "glow",
+        backgroundEffect: "aurora",
+        animation: "playful"
+      },
+      minimal: {
+        accentColor: "#c1b7a5",
+        backgroundColor: "#101010",
+        surfaceStyle: "solid",
+        surfaceColor: "#181818",
+        cardOpacity: 0.9,
+        surfaceBlur: 0,
+        surfaceBorderColor: "#ffffff",
+        surfaceBorderOpacity: 0.08,
+        surfaceBorderWidth: 1,
+        surfaceRadius: 16,
+        surfaceHighlight: false,
+        cardEffect: "none",
+        backgroundEffect: "none",
+        animation: "none"
+      }
+    } satisfies Record<
+      "glass" | "neon" | "minimal",
+      Pick<
+        Appearance,
+        | "accentColor"
+        | "backgroundColor"
+        | "surfaceStyle"
+        | "surfaceColor"
+        | "cardOpacity"
+        | "surfaceBlur"
+        | "surfaceBorderColor"
+        | "surfaceBorderOpacity"
+        | "surfaceBorderWidth"
+        | "surfaceRadius"
+        | "surfaceHighlight"
+        | "cardEffect"
+        | "backgroundEffect"
+        | "animation"
+      >
+    >;
+
+    setProfile((current) => ({
+      ...current,
+      appearance: { ...current.appearance, ...presets[preset] }
     }));
   }
 
@@ -438,7 +537,81 @@ export default function DashboardClient({
     );
   }
 
-  async function uploadMusicCover(
+  async function uploadProfileImage(
+    event: ChangeEvent<HTMLInputElement>,
+    target: ProfileImageTarget | "projectImageUpload",
+    projectId?: string
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const imageTypes: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp"
+    };
+    const extension = imageTypes[file.type.toLowerCase()];
+    if (!extension) {
+      setNotice("Choose a JPG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setNotice("Images must be 5 MB or smaller.");
+      return;
+    }
+
+    if (target === "avatarImageUpload" || target === "bannerImageUpload") {
+      setCropImage({ file, imageUrl: URL.createObjectURL(file), target });
+      return;
+    }
+
+    try {
+      await uploadProfileImageFile(file, extension, target, projectId);
+    } catch (error) {
+      setNotice(
+        `Could not upload image: ${error instanceof Error ? error.message : "An unexpected error occurred."}`
+      );
+    }
+  }
+
+  async function uploadProfileImageFile(
+    file: Blob,
+    extension: string,
+    target: ProfileImageTarget | "projectImageUpload",
+    projectId?: string
+  ) {
+    setNotice("Uploading image...");
+    const path = `${profile.user_id}/${createUploadId()}.${extension}`;
+    const { data, error } = await supabase.storage
+      .from("profile-music")
+      .upload(path, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: false
+      });
+
+    if (error) {
+      throw new Error(getMusicStorageErrorMessage(error));
+    }
+
+    const { data: publicUrl } = supabase.storage
+      .from("profile-music")
+      .getPublicUrl(data.path);
+
+    if (target === "projectImageUpload") {
+      if (!projectId) {
+        throw new Error("Could not identify the project for this image.");
+      }
+      await updateProject(projectId, { image_upload_url: publicUrl.publicUrl });
+      return;
+    }
+
+    updateAppearance(target, publicUrl.publicUrl);
+    setNotice("Image uploaded. Your profile is saving.");
+  }
+
+  function selectMusicCover(
     event: ChangeEvent<HTMLInputElement>,
     trackId: string
   ) {
@@ -461,20 +634,31 @@ export default function DashboardClient({
       return;
     }
 
+    setCropImage({
+      file,
+      imageUrl: URL.createObjectURL(file),
+      target: "musicCover",
+      trackId
+    });
+  }
+
+  async function uploadMusicCoverFile(file: Blob, trackId: string) {
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error("Cropped cover images must be 5 MB or smaller.");
+    }
+
     try {
-      setNotice("Uploading cover...");
-      const path = `${profile.user_id}/${createUploadId()}.${extension}`;
+      setNotice("Uploading cropped cover...");
+      const path = `${profile.user_id}/${createUploadId()}.png`;
       const { data, error } = await supabase.storage
         .from("profile-music")
         .upload(path, file, {
           cacheControl: "31536000",
-          contentType: file.type,
+          contentType: "image/png",
           upsert: false
         });
-
       if (error) {
-        setNotice(`Could not upload cover: ${getMusicStorageErrorMessage(error)}`);
-        return;
+        throw new Error(getMusicStorageErrorMessage(error));
       }
 
       const { data: publicUrl } = supabase.storage
@@ -489,9 +673,10 @@ export default function DashboardClient({
       );
       setNotice("Cover uploaded. Your profile is saving.");
     } catch (error) {
-      setNotice(
-        `Could not upload cover: ${error instanceof Error ? error.message : "An unexpected error occurred."}`
-      );
+      const message =
+        error instanceof Error ? error.message : "An unexpected error occurred.";
+      setNotice(`Could not upload cover: ${message}`);
+      throw new Error(message);
     }
   }
 
@@ -745,6 +930,7 @@ export default function DashboardClient({
         description: "",
         url: "https://example.com",
         image_url: "",
+        image_upload_url: "",
         tags: [],
         position: projects.length,
         enabled: true
@@ -764,7 +950,10 @@ export default function DashboardClient({
   async function updateProject(
     id: string,
     patch: Partial<
-      Pick<Project, "title" | "description" | "url" | "image_url" | "tags" | "enabled">
+      Pick<
+        Project,
+        "title" | "description" | "url" | "image_upload_url" | "tags" | "enabled"
+      >
     >
   ) {
     if (
@@ -786,11 +975,11 @@ export default function DashboardClient({
     }
 
     if (
-      patch.image_url !== undefined &&
-      patch.image_url !== "" &&
-      !urlSchema.safeParse(patch.image_url).success
+      patch.image_upload_url !== undefined &&
+      patch.image_upload_url !== "" &&
+      !urlSchema.safeParse(patch.image_upload_url).success
     ) {
-      setNotice("Enter a valid HTTP or HTTPS image URL, or leave it empty.");
+      setNotice("The uploaded project image could not be saved.");
       return;
     }
 
@@ -857,6 +1046,37 @@ export default function DashboardClient({
 
   return (
     <main className="dashboard-shell min-h-screen bg-[#f5f1e7] text-[#292b24]">
+      {cropImage && (
+        <ImageCropDialog
+          key={`${cropImage.file.name}-${cropImage.file.lastModified}`}
+          imageUrl={cropImage.imageUrl}
+          aspectRatio={
+            cropImage.target === "bannerImageUpload"
+              ? 3
+              : 1
+          }
+          title={
+            cropImage.target === "avatarImageUpload"
+              ? "avatar"
+              : cropImage.target === "bannerImageUpload"
+                ? "banner"
+                : "music cover"
+          }
+          onCancel={() => {
+            URL.revokeObjectURL(cropImage.imageUrl);
+            setCropImage(null);
+          }}
+          onSave={async (image) => {
+            if (cropImage.target === "musicCover") {
+              await uploadMusicCoverFile(image, cropImage.trackId);
+            } else {
+              await uploadProfileImageFile(image, "png", cropImage.target);
+            }
+            URL.revokeObjectURL(cropImage.imageUrl);
+            setCropImage(null);
+          }}
+        />
+      )}
       <header className="sticky top-0 z-20 border-b border-[#292b24]/10 bg-[#f5f1e7]/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <Link
@@ -999,7 +1219,7 @@ export default function DashboardClient({
                       />
                     </label>
 
-                    <label className="text-sm font-semibold sm:col-span-2">
+                    <label className="text-sm font-semibold">
                       Bio
                       <textarea
                         value={profile.bio}
@@ -1013,31 +1233,53 @@ export default function DashboardClient({
                       </span>
                     </label>
 
-                    <label className="text-sm font-semibold">
-                      Avatar image URL
-                      <input
-                        type="url"
-                        value={profile.avatar_url}
-                        onChange={(event) =>
-                          updateProfile("avatar_url", event.target.value)
-                        }
-                        placeholder="https://…"
-                        className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 outline-none focus:border-violet"
-                      />
-                    </label>
+                    <div className="text-sm font-semibold">
+                      Avatar image
+                      <span className="mt-2 flex items-center gap-3">
+                        <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium hover:border-violet">
+                          Upload avatar
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) => uploadProfileImage(event, "avatarImageUpload")}
+                            className="sr-only"
+                          />
+                        </label>
+                        {profile.appearance.avatarImageUpload && (
+                          <button
+                            type="button"
+                            onClick={() => updateAppearance("avatarImageUpload", "")}
+                            className="text-xs font-medium text-red-600 hover:underline"
+                          >
+                            Remove upload
+                          </button>
+                        )}
+                      </span>
+                    </div>
 
-                    <label className="text-sm font-semibold">
-                      Banner image URL
-                      <input
-                        type="url"
-                        value={profile.banner_url}
-                        onChange={(event) =>
-                          updateProfile("banner_url", event.target.value)
-                        }
-                        placeholder="https://…"
-                        className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 outline-none focus:border-violet"
-                      />
-                    </label>
+                    <div className="text-sm font-semibold">
+                      Banner image
+                      <span className="mt-2 flex items-center gap-3">
+                        <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium hover:border-violet">
+                          Upload banner
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) => uploadProfileImage(event, "bannerImageUpload")}
+                            className="sr-only"
+                          />
+                        </label>
+                        {profile.appearance.bannerImageUpload && (
+                          <button
+                            type="button"
+                            onClick={() => updateAppearance("bannerImageUpload", "")}
+                            className="text-xs font-medium text-red-600 hover:underline"
+                          >
+                            Remove upload
+                          </button>
+                        )}
+                      </span>
+                    </div>
 
                     <label className="text-sm font-semibold">
                       Location
@@ -1098,10 +1340,251 @@ export default function DashboardClient({
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
                 <h2 className="font-serif text-2xl">Design</h2>
                 <p className="mt-1 text-sm text-[#77776d]">
-                  Dark mode stays on. Shape the details around it.
+                  Start with a style, then open the controls only if you want them.
                 </p>
 
-                <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                <div className="mt-6 space-y-6">
+                  <section>
+                    <h3 className="text-sm font-semibold">Choose a style</h3>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      {([
+                        {
+                          id: "glass",
+                          title: "Glass",
+                          description: "Soft, translucent surfaces",
+                          swatch: "from-violet-400/40 via-[#211d2b] to-[#09090d]"
+                        },
+                        {
+                          id: "neon",
+                          title: "Neon",
+                          description: "Color, glow, and movement",
+                          swatch: "from-fuchsia-500/60 via-[#211436] to-[#09090d]"
+                        },
+                        {
+                          id: "minimal",
+                          title: "Minimal",
+                          description: "Clean, quiet, and solid",
+                          swatch: "from-stone-400/20 via-[#222] to-[#101010]"
+                        }
+                      ] as const).map((preset) => {
+                        const selected =
+                          preset.id === "glass"
+                            ? profile.appearance.surfaceStyle === "glass" &&
+                              profile.appearance.cardEffect === "none"
+                            : preset.id === "neon"
+                              ? profile.appearance.surfaceStyle === "glass" &&
+                                profile.appearance.cardEffect === "glow"
+                              : profile.appearance.surfaceStyle === "solid";
+
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => applyAppearancePreset(preset.id)}
+                            className={`overflow-hidden rounded-2xl border text-left transition ${
+                              selected
+                                ? "border-violet-500 ring-2 ring-violet-500/20"
+                                : "border-black/10 hover:border-black/25"
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`block h-16 bg-gradient-to-br ${preset.swatch}`}
+                            />
+                            <span className="block p-3">
+                              <span className="block text-sm font-semibold">
+                                {preset.title}
+                              </span>
+                              <span className="mt-1 block text-xs font-normal text-black/50">
+                                {preset.description}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-sm font-semibold">Page layout</h3>
+                    <p className="mt-1 text-xs text-black/50">
+                      Pick what visitors should notice first.
+                    </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {([
+                        ["minimal", "Minimal", "A tighter, focused page"],
+                        ["personal", "Personal", "A balanced profile"],
+                        ["social", "Social", "A centered social profile"],
+                        ["portfolio", "Portfolio", "Projects before links"]
+                      ] as const).map(([mode, title, description]) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          aria-pressed={profile.mode === mode}
+                          onClick={() => updateProfile("mode", mode)}
+                          className={`rounded-xl border p-3 text-left transition ${
+                            profile.mode === mode
+                              ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/20"
+                              : "border-black/10 bg-white hover:border-black/25"
+                          }`}
+                        >
+                          <span className="block text-sm font-semibold">{title}</span>
+                          <span className="mt-1 block text-xs font-normal text-black/50">
+                            {description}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <details className="rounded-2xl border border-black/10 bg-white/60 p-4">
+                    <summary className="cursor-pointer list-none text-sm font-semibold marker:hidden">
+                      Customize appearance
+                      <span className="ml-2 text-xs font-normal text-black/45">
+                        Colors, glass, effects, and more
+                      </span>
+                    </summary>
+                    <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                  <details className="sm:col-span-2 rounded-2xl border border-black/10 bg-white/70 p-4">
+                    <summary className="cursor-pointer list-none text-sm font-semibold">
+                      Glass surface controls
+                      <span className="ml-2 text-xs font-normal text-black/45">
+                        Optional tint, blur, and border tuning
+                      </span>
+                    </summary>
+                    <fieldset className="mt-4 space-y-4">
+                    <legend className="px-1 text-sm font-semibold">
+                      Profile surfaces
+                    </legend>
+                    <p className="text-xs font-normal leading-5 text-black/50">
+                      Tune the profile box and its links, music player, socials, and projects together.
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm font-semibold">
+                        Surface style
+                        <select
+                          value={profile.appearance.surfaceStyle}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "surfaceStyle",
+                              event.target.value as Appearance["surfaceStyle"]
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="glass">Glass</option>
+                          <option value="solid">Solid (no blur)</option>
+                          <option value="gradient">Gradient</option>
+                        </select>
+                      </label>
+                      <ColorField
+                        label="Surface tint"
+                        value={profile.appearance.surfaceColor}
+                        onChange={(value) => updateAppearance("surfaceColor", value)}
+                      />
+                      <ColorField
+                        label="Border color"
+                        value={profile.appearance.surfaceBorderColor}
+                        onChange={(value) =>
+                          updateAppearance("surfaceBorderColor", value)
+                        }
+                      />
+                      <label className="text-sm font-semibold">
+                        Surface opacity: {Math.round(profile.appearance.cardOpacity * 100)}%
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.02"
+                          value={profile.appearance.cardOpacity}
+                          onChange={(event) =>
+                            updateAppearance("cardOpacity", Number(event.target.value))
+                          }
+                          className="mt-4 block w-full accent-violet"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Glass blur: {profile.appearance.surfaceBlur}px
+                        <input
+                          type="range"
+                          min="0"
+                          max="40"
+                          step="1"
+                          value={profile.appearance.surfaceBlur}
+                          disabled={profile.appearance.surfaceStyle !== "glass"}
+                          onChange={(event) =>
+                            updateAppearance("surfaceBlur", Number(event.target.value))
+                          }
+                          className="mt-4 block w-full accent-violet disabled:opacity-40"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Border opacity: {Math.round(profile.appearance.surfaceBorderOpacity * 100)}%
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.02"
+                          value={profile.appearance.surfaceBorderOpacity}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "surfaceBorderOpacity",
+                              Number(event.target.value)
+                            )
+                          }
+                          className="mt-4 block w-full accent-violet"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Border thickness: {profile.appearance.surfaceBorderWidth}px
+                        <input
+                          type="range"
+                          min="0"
+                          max="4"
+                          step="0.5"
+                          value={profile.appearance.surfaceBorderWidth}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "surfaceBorderWidth",
+                              Number(event.target.value)
+                            )
+                          }
+                          className="mt-4 block w-full accent-violet"
+                        />
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Corner radius: {profile.appearance.surfaceRadius}px
+                        <input
+                          type="range"
+                          min="0"
+                          max="48"
+                          step="1"
+                          value={profile.appearance.surfaceRadius}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "surfaceRadius",
+                              Number(event.target.value)
+                            )
+                          }
+                          className="mt-4 block w-full accent-violet"
+                        />
+                      </label>
+                      <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
+                        <input
+                          type="checkbox"
+                          checked={profile.appearance.surfaceHighlight}
+                          onChange={(event) =>
+                            updateAppearance("surfaceHighlight", event.target.checked)
+                          }
+                          className="h-4 w-4 accent-violet"
+                        />
+                        Top-edge glass highlight
+                      </label>
+                    </div>
+                    </fieldset>
+                  </details>
+
                   <ColorField
                     label="Accent"
                     value={profile.appearance.accentColor}
@@ -1120,20 +1603,34 @@ export default function DashboardClient({
                     onChange={(value) => updateAppearance("textColor", value)}
                   />
 
-                  <label className="text-sm font-semibold">
-                    Background image URL
-                    <input
-                      value={profile.appearance.backgroundImage}
-                      onChange={(event) =>
-                        updateAppearance("backgroundImage", event.target.value)
-                      }
-                      placeholder="https://…"
-                      className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 outline-none focus:border-violet"
-                    />
-                  </label>
+                  <div className="text-sm font-semibold">
+                    Background image
+                    <span className="mt-2 flex items-center gap-3">
+                      <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium hover:border-violet">
+                        Upload background
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(event) =>
+                            uploadProfileImage(event, "backgroundImageUpload")
+                          }
+                          className="sr-only"
+                        />
+                      </label>
+                      {profile.appearance.backgroundImageUpload && (
+                        <button
+                          type="button"
+                          onClick={() => updateAppearance("backgroundImageUpload", "")}
+                          className="text-xs font-medium text-red-600 hover:underline"
+                        >
+                          Remove upload
+                        </button>
+                      )}
+                    </span>
+                  </div>
 
                   <label className="text-sm font-semibold">
-                    Card shape
+                    Avatar and status shape
                     <select
                       value={profile.appearance.radius}
                       onChange={(event) =>
@@ -1242,9 +1739,16 @@ export default function DashboardClient({
                     </select>
                   </label>
 
-                  <fieldset className="rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4 sm:col-span-2">
+                  <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
+                    <summary className="cursor-pointer list-none text-sm font-semibold">
+                      Click-to-enter screen
+                      <span className="ml-2 text-xs font-normal text-black/45">
+                        Text, blur, and entrance effect
+                      </span>
+                    </summary>
+                    <fieldset className="mt-4">
                     <legend className="px-1 text-sm font-semibold">
-                      Click to enter
+                      Visitor entrance settings
                     </legend>
                     <p className="mt-1 text-xs font-normal leading-5 text-black/50">
                       Visitors click this screen to open your page. Their click can start your song too.
@@ -1261,6 +1765,24 @@ export default function DashboardClient({
                           placeholder="click to enter"
                           className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3 outline-none focus:border-violet"
                         />
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Background blur: {profile.appearance.enterBlur}px
+                        <input
+                          type="range"
+                          min="0"
+                          max="20"
+                          step="0.5"
+                          value={profile.appearance.enterBlur}
+                          onChange={(event) =>
+                            updateAppearance("enterBlur", Number(event.target.value))
+                          }
+                          className="mt-3 w-full accent-violet-600"
+                        />
+                        <span className="mt-1 flex justify-between text-xs font-normal text-black/45">
+                          <span>Off</span>
+                          <span>Strong</span>
+                        </span>
                       </label>
                       <label className="text-sm font-semibold">
                         Entrance effect
@@ -1284,11 +1806,19 @@ export default function DashboardClient({
                         </select>
                       </label>
                     </div>
-                  </fieldset>
+                    </fieldset>
+                  </details>
 
-                  <fieldset className="sm:col-span-2">
-                    <legend className="text-sm font-semibold">
+                  <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
+                    <summary className="cursor-pointer list-none text-sm font-semibold">
                       Username effects
+                      <span className="ml-2 text-xs font-normal text-black/45">
+                        Animate or style your display name
+                      </span>
+                    </summary>
+                    <fieldset className="mt-4">
+                    <legend className="text-sm font-semibold">
+                      Pick an effect
                     </legend>
                     <p className="mt-1 text-xs font-normal text-black/45">
                       Choose a free built-in style for your display name.
@@ -1333,27 +1863,13 @@ export default function DashboardClient({
                         );
                       })}
                     </div>
-                  </fieldset>
+                    </fieldset>
+                  </details>
 
                   <p className="text-xs font-normal leading-5 text-black/45 sm:col-span-2">
                     Effects are built in and free. Reduce motion disables
                     animation while leaving static styles available.
                   </p>
-
-                  <label className="text-sm font-semibold sm:col-span-2">
-                    Card opacity: {Math.round(profile.appearance.cardOpacity * 100)}%
-                    <input
-                      type="range"
-                      min="0.35"
-                      max="1"
-                      step="0.05"
-                      value={profile.appearance.cardOpacity}
-                      onChange={(event) =>
-                        updateAppearance("cardOpacity", Number(event.target.value))
-                      }
-                      className="mt-4 block w-full accent-violet"
-                    />
-                  </label>
 
                   <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
                     <input
@@ -1378,6 +1894,8 @@ export default function DashboardClient({
                     />
                     Reduce motion
                   </label>
+                    </div>
+                  </details>
                 </div>
               </div>
 
@@ -1435,9 +1953,9 @@ export default function DashboardClient({
                         className="rounded-2xl border border-black/10 bg-black/[0.025] p-4"
                       >
                         <div className="flex items-center gap-3">
-                          {track.coverUrl ? (
+                          {track.coverUrl || track.coverImageUrl ? (
                             <Image
-                              src={track.coverUrl}
+                              src={track.coverUrl || track.coverImageUrl || ""}
                               alt=""
                               width={52}
                               height={52}
@@ -1548,13 +2066,30 @@ export default function DashboardClient({
                             <input
                               type="file"
                               accept="image/jpeg,image/png,image/webp"
-                              onChange={(event) => uploadMusicCover(event, track.id)}
+                              onChange={(event) => selectMusicCover(event, track.id)}
                               className="sr-only"
                             />
                           </label>
                           <span className="text-[11px] text-black/45">
                             JPG, PNG, or WebP up to 5 MB
                           </span>
+                          {track.coverUrl && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMusicTracks(
+                                  profile.appearance.musicTracks.map((item) =>
+                                    item.id === track.id
+                                      ? { ...item, coverUrl: "" }
+                                      : item
+                                  )
+                                )
+                              }
+                              className="text-xs font-medium text-red-600 hover:underline"
+                            >
+                              Remove upload
+                            </button>
+                          )}
                         </div>
                       </li>
                     ))}
@@ -1985,25 +2520,33 @@ export default function DashboardClient({
                         />
                       </label>
 
-                      <label className="text-xs font-semibold text-black/45">
-                        IMAGE URL (OPTIONAL)
-                        <input
-                          value={project.image_url}
-                          onChange={(event) =>
-                            setProjects((current) =>
-                              current.map((item) =>
-                                item.id === project.id
-                                  ? { ...item, image_url: event.target.value }
-                                  : item
-                              )
-                            )
-                          }
-                          onBlur={() =>
-                            updateProject(project.id, { image_url: project.image_url })
-                          }
-                          className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-black"
-                        />
-                      </label>
+                      <div className="flex items-center gap-3">
+                        <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium text-black hover:border-violet">
+                          Upload project image
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) =>
+                              uploadProfileImage(event, "projectImageUpload", project.id)
+                            }
+                            className="sr-only"
+                          />
+                        </label>
+                        <span className="text-[11px] text-black/45">
+                          JPG, PNG, or WebP up to 5 MB
+                        </span>
+                        {project.image_upload_url && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void updateProject(project.id, { image_upload_url: "" })
+                            }
+                            className="text-xs font-medium text-red-600 hover:underline"
+                          >
+                            Remove upload
+                          </button>
+                        )}
+                      </div>
 
                       <label className="text-xs font-semibold text-black/45">
                         TAGS (COMMA-SEPARATED)

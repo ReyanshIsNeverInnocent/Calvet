@@ -38,7 +38,22 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  const { error } = await supabase.auth.getUser();
+
+  if (error?.code === "refresh_token_not_found") {
+    const projectRef = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname.split(".")[0];
+    const authCookieName = `sb-${projectRef}-auth-token`;
+    const authCookiePattern = new RegExp(
+      `^${authCookieName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\.\\d+)?$`
+    );
+
+    for (const { name } of request.cookies.getAll()) {
+      if (!authCookiePattern.test(name)) continue;
+
+      request.cookies.delete(name);
+      response.cookies.set(name, "", { path: "/", maxAge: 0 });
+    }
+  }
 
   return response;
 }

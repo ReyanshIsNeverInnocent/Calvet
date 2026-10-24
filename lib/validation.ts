@@ -15,6 +15,14 @@ export const urlSchema = z
   .url()
   .refine((value) => /^https?:\/\//i.test(value), "Only HTTP and HTTPS URLs are supported");
 
+const optionalImageUrlSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (value) => value === "" || urlSchema.safeParse(value).success,
+    "Enter a valid HTTP or HTTPS image URL, or leave it empty."
+  );
+
 export const profileSchema = z.object({
   username: usernameSchema,
   display_name: z.string().trim().min(1).max(80),
@@ -32,7 +40,15 @@ export const profileSchema = z.object({
     textColor: z.string().regex(/^#[0-9a-f]{6}$/i),
     backgroundColor: z.string().regex(/^#[0-9a-f]{6}$/i),
     backgroundImage: z.string().url().or(z.literal("")),
-    cardOpacity: z.number().min(0.35).max(1),
+    cardOpacity: z.number().min(0).max(1),
+    surfaceStyle: z.enum(["glass", "solid", "gradient"]),
+    surfaceColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+    surfaceBlur: z.number().min(0).max(40),
+    surfaceBorderColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+    surfaceBorderOpacity: z.number().min(0).max(1),
+    surfaceBorderWidth: z.number().min(0).max(4),
+    surfaceRadius: z.number().min(0).max(48),
+    surfaceHighlight: z.boolean(),
     radius: z.enum(["small", "medium", "large"]),
     shadow: z.boolean(),
     font: z.enum(["inter", "system", "serif"]),
@@ -54,11 +70,16 @@ export const profileSchema = z.object({
           url: z.string().url().max(2048),
           title: z.string().trim().max(120),
           artist: z.string().trim().max(120),
-          coverUrl: z.string().max(2048)
+          coverUrl: optionalImageUrlSchema,
+          coverImageUrl: optionalImageUrlSchema.optional()
         })
       )
       .max(3),
+    avatarImageUpload: z.string().url().or(z.literal("")),
+    bannerImageUpload: z.string().url().or(z.literal("")),
+    backgroundImageUpload: z.string().url().or(z.literal("")),
     enterText: z.string().trim().min(1).max(60),
+    enterBlur: z.number().min(0).max(20),
     enterEffect: z.enum([
       "none",
       "spotlight",

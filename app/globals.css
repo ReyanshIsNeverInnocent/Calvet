@@ -512,29 +512,6 @@ a {
   margin-top: 0;
 }
 
-.home-demo-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: rgba(255,255,255,.59);
-  font-size: 12px;
-  transition: color 180ms ease, transform 180ms ease;
-}
-
-.home-demo-link span {
-  color: #bda1ff;
-  font-size: 16px;
-  transition: transform 180ms ease;
-}
-
-.home-demo-link:hover {
-  color: white;
-}
-
-.home-demo-link:hover span {
-  transform: translate(2px, -2px);
-}
-
 .home-note-row {
   display: flex;
   align-items: center;
@@ -668,7 +645,7 @@ a {
 .home-cover-moon {
   position: absolute;
   top: 20px;
-  left: 13%;
+  right: 30%;
   width: 56px;
   height: 56px;
   border: 1px solid rgba(235,219,255,.45);
@@ -681,8 +658,7 @@ a {
 .home-cover-caption {
   position: absolute;
   z-index: 1;
-  right: 19px;
-  bottom: 15px;
+  top: 15px;
   left: 19px;
   display: flex;
   justify-content: space-between;
@@ -744,7 +720,7 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 27px 0 0 auto;
+  margin-left: auto;
   border: 1px solid rgba(146,220,167,.17);
   border-radius: 999px;
   padding: 6px 9px;
@@ -1547,13 +1523,34 @@ a {
     inset 0 1px 0 rgba(255,255,255,.07);
 }
 
-.profile-panel-gradient {
+.profile-panel-gradient-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   background-image: linear-gradient(
     135deg,
     color-mix(in srgb, var(--profile-accent-color) 13%, transparent),
     transparent 48%,
     rgba(75, 151, 189, .08)
   );
+}
+
+.profile-surface-highlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--surface-highlight);
+  pointer-events: none;
+}
+
+.profile-surface {
+  background-color: var(--surface-fallback, #211d2b);
+}
+
+@supports (backdrop-filter: blur(1px)) {
+  .profile-surface {
+    background-color: unset;
+  }
 }
 
 .profile-page-enter .profile-panel > .relative > section {

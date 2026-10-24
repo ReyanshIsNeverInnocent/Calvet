@@ -2,6 +2,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { SiDiscord, SiInstagram, SiSpotify } from "@icons-pack/react-simple-icons";
 import { ArrowUpRight, Disc3, Heart, Music2, Sparkles } from "lucide-react";
+import { homeDemoProfile } from "@/lib/home-demo-profile";
+
+const homeSocialIcons = {
+  instagram: SiInstagram,
+  spotify: SiSpotify,
+  discord: SiDiscord
+} as const;
 
 export default function HomePage() {
   return (
@@ -29,10 +36,10 @@ export default function HomePage() {
             href="/demo"
             className="whitespace-nowrap rounded-full px-4 py-2.5 text-sm text-white/60 transition hover:text-white"
           >
-            Explore
+            Demo
           </Link>
           <Link
-            href="/make"
+            href="/dashboard"
             className="home-create-link whitespace-nowrap"
           >
             Make yours <ArrowUpRight size={15} />
@@ -58,11 +65,8 @@ export default function HomePage() {
             have played 47 times today. Make it yours and make it weird.
           </p>
           <div className="home-actions">
-            <Link href="/make" className="home-main-cta">
+            <Link href="/dashboard" className="home-main-cta">
               Make your page <ArrowUpRight size={17} />
-            </Link>
-            <Link href="/demo" className="home-demo-link">
-              peek at an example <span aria-hidden="true">↗</span>
             </Link>
           </div>
           <div className="home-note-row">
@@ -89,35 +93,54 @@ export default function HomePage() {
             <div className="home-cover">
               <div className="home-cover-moon" />
               <div className="home-cover-caption">
-                <span>nova&apos;s corner</span>
-                <span>✳</span>
+                <span>{homeDemoProfile.coverCaption}</span>
               </div>
             </div>
 
             <div className="home-profile-body">
               <div className="home-identity">
-                <div className="home-avatar" aria-hidden="true">n</div>
-                <div className="min-w-0">
-                  <h2>nova <span>✦</span></h2>
-                  <p>@nova.exe</p>
+                <div
+                  className="home-avatar"
+                  aria-label={`${homeDemoProfile.displayName} avatar`}
+                  role="img"
+                  style={
+                    homeDemoProfile.avatarUrl
+                      ? {
+                          backgroundImage: `url("${homeDemoProfile.avatarUrl}")`,
+                          backgroundPosition: "center",
+                          backgroundSize: "cover"
+                        }
+                      : undefined
+                  }
+                >
+                  {!homeDemoProfile.avatarUrl && homeDemoProfile.avatarFallback}
                 </div>
-                <span className="home-status"><i /> around</span>
+                <div className="min-w-0">
+                  <h2>{homeDemoProfile.displayName} <span>✦</span></h2>
+                  <p>@{homeDemoProfile.username}</p>
+                </div>
+                <span className="home-status"><i /> {homeDemoProfile.status}</span>
               </div>
 
               <p className="home-bio">
-                collecting playlists, making silly little things, probably avoiding my homework
+                {homeDemoProfile.bio}
               </p>
 
               <div className="home-interests" aria-label="Interests">
-                <span>shoegaze</span>
-                <span>indie games</span>
-                <span>late night walks</span>
+                {homeDemoProfile.interests.map((interest) => (
+                  <span key={interest}>{interest}</span>
+                ))}
               </div>
 
               <div className="home-socials" aria-label="Example social links">
-                <span><SiInstagram aria-hidden="true" size={17} /> instagram</span>
-                <span><SiSpotify aria-hidden="true" size={17} /> spotify</span>
-                <span><SiDiscord aria-hidden="true" size={17} /> discord</span>
+                {homeDemoProfile.socials.map(({ platform, label }) => {
+                  const Icon = homeSocialIcons[platform];
+                  return (
+                    <span key={platform}>
+                      <Icon aria-hidden="true" size={17} /> {label}
+                    </span>
+                  );
+                })}
               </div>
 
               <div className="home-music-card">
@@ -126,8 +149,8 @@ export default function HomePage() {
                 </div>
                 <div className="home-track-copy">
                   <span><Music2 size={12} /> ON REPEAT</span>
-                  <strong>the same 12 songs</strong>
-                  <small>nova&apos;s current playlist</small>
+                  <strong>{homeDemoProfile.musicTitle}</strong>
+                  <small>{homeDemoProfile.musicCaption}</small>
                 </div>
                 <div className="home-equalizer" aria-hidden="true">
                   <i /><i /><i /><i /><i />
@@ -143,9 +166,9 @@ export default function HomePage() {
       </section>
 
       <footer className="home-footer">
-        <span>calvet <i>✳</i></span>
+        <span>calvet</span>
         <span>tiny corner of the internet, big main-character energy</span>
-        <Link href="/demo">stalk the demo <ArrowUpRight size={13} /></Link>
+        <Link href="/dashboard">make your own <ArrowUpRight size={13} /></Link>
       </footer>
     </main>
   );
