@@ -2,12 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { GripVertical } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 
 export type ManagedBadge = {
   id: string;
   kind: string;
   label: string;
+  is_visible: boolean;
+  position: number;
 };
 
 type BadgeManagerProps = {
@@ -22,6 +25,7 @@ const BUILT_IN_BADGES = [
   ["early", "Early"],
   ["official-demo", "Official Demo"],
   ["developer", "Developer"],
+  ["friends", "Friends"],
   ["the-one-and-only", "The One and Only"]
 ] as const;
 
@@ -32,6 +36,8 @@ export default function BadgeManager({
 }: BadgeManagerProps) {
   const router = useRouter();
   const supabase = createClient();
+  const [managedBadges, setManagedBadges] = useState(badges);
+  const [draggedBadgeId, setDraggedBadgeId] = useState<string | null>(null);
   const [username, setUsername] = useState(initialUsername);
   const [kind, setKind] = useState<string>(BUILT_IN_BADGES[0][0]);
   const [customKind, setCustomKind] = useState("");
@@ -40,6 +46,41 @@ export default function BadgeManager({
   const [busy, setBusy] = useState(false);
   const activeProfile =
     profile && username.trim().toLowerCase() === profile.username ? profile : null;
+
+  async function saveBadgePreferences(nextBadges: ManagedBadge[]) {
+    if (!activeProfile) return;
+
+    const previousBadges = managedBadges;
+    const orderedBadges = nextBadges.map((badge, position) => ({
+      ...badge,
+      position
+    }));
+    setManagedBadges(orderedBadges);
+    setBusy(true);
+    setMessage("");
+
+    const { error } = await supabase.rpc(
+      "admin_update_profile_badge_preferences",
+      {
+        p_username: activeProfile.username,
+        p_preferences: orderedBadges.map(({ id, is_visible, position }) => ({
+          id,
+          is_visible,
+          position
+        }))
+      }
+    );
+    setBusy(false);
+
+    if (error) {
+      setManagedBadges(previousBadges);
+      setMessage(`Could not save badge settings: ${error.message}`);
+      return;
+    }
+
+    setMessage("Badge settings saved.");
+    router.refresh();
+  }
 
   function findProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -202,20 +243,69 @@ export default function BadgeManager({
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
             <h2 className="text-lg font-semibold">Current badges</h2>
-            {badges.length === 0 ? (
+            {managedBadges.length === 0 ? (
               <p className="mt-3 text-sm text-white/45">No badges on this profile yet.</p>
             ) : (
               <ul className="mt-4 space-y-3">
-                {badges.map((badge) => (
+                {managedBadges.map((badge, index) => (
                   <li
                     key={badge.id}
-                    className="flex flex-col gap-3 rounded-xl border border-white/10 p-3 sm:flex-row sm:items-center"
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (!draggedBadgeId || busy) return;
+
+                      const fromIndex = managedBadges.findIndex(
+                        (item) => item.id === draggedBadgeId
+                      );
+                      if (fromIndex < 0 || fromIndex === index) return;
+
+                      const reordered = [...managedBadges];
+                      const [draggedBadge] = reordered.splice(fromIndex, 1);
+                      reordered.splice(index, 0, draggedBadge);
+                      setDraggedBadgeId(null);
+                      void saveBadgePreferences(reordered);
+                    }}
+                    className={`flex flex-col gap-3 rounded-xl border border-white/10 p-3 transition sm:flex-row sm:items-center ${
+                      draggedBadgeId === badge.id ? "opacity-45" : ""
+                    }`}
                   >
+                    <button
+                      type="button"
+                      draggable={!busy}
+                      aria-label={`Drag to reorder ${badge.label}, position ${index + 1}`}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        setDraggedBadgeId(badge.id);
+                      }}
+                      onDragEnd={() => setDraggedBadgeId(null)}
+                      className="cursor-grab self-start text-white/40 hover:text-white/80 active:cursor-grabbing sm:self-auto"
+                    >
+                      <GripVertical size={18} />
+                    </button>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-white/40">{badge.kind}</p>
                       <p className="mt-1 font-medium">{badge.label}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="mr-1 flex items-center gap-2 text-xs text-white/65">
+                        <input
+                          type="checkbox"
+                          checked={badge.is_visible}
+                          disabled={busy}
+                          onChange={(event) => {
+                            void saveBadgePreferences(
+                              managedBadges.map((item) =>
+                                item.id === badge.id
+                                  ? { ...item, is_visible: event.target.checked }
+                                  : item
+                              )
+                            );
+                          }}
+                          className="h-4 w-4 accent-violet-300"
+                        />
+                        Visible
+                      </label>
                       <button
                         type="button"
                         disabled={busy}

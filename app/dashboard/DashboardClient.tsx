@@ -17,6 +17,7 @@ import {
   BarChart3,
   ExternalLink,
   Eye,
+  GripVertical,
   Link2,
   Images,
   Music2,
@@ -100,6 +101,21 @@ type AudioMetadata = {
   cover?: Blob;
 };
 
+function reorderById<T extends { id: string }>(
+  items: T[],
+  draggedId: string,
+  targetId: string
+) {
+  const fromIndex = items.findIndex((item) => item.id === draggedId);
+  const toIndex = items.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return items;
+
+  const reordered = [...items];
+  const [draggedItem] = reordered.splice(fromIndex, 1);
+  reordered.splice(toIndex, 0, draggedItem);
+  return reordered;
+}
+
 function createUploadId() {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -179,7 +195,10 @@ export default function DashboardClient({
   const [socials, setSocials] = useState(initialSocials);
   const [projects, setProjects] = useState(initialProjects);
   const [media, setMedia] = useState(initialMedia);
-  const [badges] = useState(initialBadges);
+  const [badges, setBadges] = useState(initialBadges);
+  const [badgeDragId, setBadgeDragId] = useState<string | null>(null);
+  const [musicDragId, setMusicDragId] = useState<string | null>(null);
+  const [savingBadgePreferences, setSavingBadgePreferences] = useState(false);
   const views = initialViews;
   const [active, setActive] = useState<EditorSection>("profile");
   const [notice, setNotice] = useState("");
@@ -308,6 +327,36 @@ export default function DashboardClient({
         musicCoverUrl: firstTrack?.coverUrl ?? ""
       }
     }));
+  }
+
+  async function saveBadgePreferences(nextBadges: ProfileBadge[]) {
+    const previousBadges = badges;
+    let position = 0;
+    const normalizedBadges = nextBadges.map((badge) =>
+      badge.kind === "creator" ? badge : { ...badge, position: position++ }
+    );
+    setBadges(normalizedBadges);
+    setSavingBadgePreferences(true);
+    setNotice("");
+
+    const { error } = await supabase.rpc("update_my_profile_badge_preferences", {
+      p_preferences: normalizedBadges
+        .filter((badge) => badge.kind !== "creator")
+        .map((badge, position) => ({
+          id: badge.id,
+          is_visible: badge.is_visible,
+          position
+        }))
+    });
+
+    setSavingBadgePreferences(false);
+    if (error) {
+      setBadges(previousBadges);
+      setNotice(`Could not save badge settings: ${error.message}`);
+      return;
+    }
+
+    setNotice("Badge settings saved.");
   }
 
   useEffect(() => {
@@ -1171,6 +1220,9 @@ export default function DashboardClient({
 
   const profileUrl = `/@${encodeURIComponent(profile.username)}`;
   const linkSuggestion = suggestLink(linkUrlInput);
+  const manageableBadges = badges
+    .filter((badge) => badge.kind !== "creator")
+    .sort((left, right) => left.position - right.position);
   const totalViews = views.reduce((total, row) => total + row.views, 0);
   const maxDailyViews = Math.max(1, ...views.map((row) => row.views));
 
@@ -2046,7 +2098,7 @@ export default function DashboardClient({
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
                 <h2 className="font-serif text-2xl">Put something on</h2>
                 <p className="mt-1 text-sm text-[#77776d]">
-                  Add up to three songs, then put them in whatever order feels right.
+                  Add up to three songs, then drag them into the order you want.
                 </p>
 
                 <div className="mt-6">
@@ -2089,7 +2141,22 @@ export default function DashboardClient({
                     {profile.appearance.musicTracks.map((track, index) => (
                       <li
                         key={track.id}
-                        className="rounded-2xl border border-black/10 bg-black/[0.025] p-4"
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (!musicDragId) return;
+                          setMusicTracks(
+                            reorderById(
+                              profile.appearance.musicTracks,
+                              musicDragId,
+                              track.id
+                            )
+                          );
+                          setMusicDragId(null);
+                        }}
+                        className={`rounded-2xl border border-black/10 bg-black/[0.025] p-4 transition ${
+                          musicDragId === track.id ? "opacity-45" : ""
+                        }`}
                       >
                         <div className="flex items-center gap-3">
                           {track.coverUrl || track.coverImageUrl ? (
@@ -2117,35 +2184,16 @@ export default function DashboardClient({
                           <div className="flex shrink-0 items-center gap-1">
                             <button
                               type="button"
-                              aria-label={`Move song ${index + 1} up`}
-                              disabled={index === 0}
-                              onClick={() => {
-                                const tracks = [...profile.appearance.musicTracks];
-                                [tracks[index - 1], tracks[index]] = [
-                                  tracks[index],
-                                  tracks[index - 1]
-                                ];
-                                setMusicTracks(tracks);
+                              draggable
+                              aria-label={`Drag to reorder ${track.title || `song ${index + 1}`}`}
+                              onDragStart={(event) => {
+                                event.dataTransfer.effectAllowed = "move";
+                                setMusicDragId(track.id);
                               }}
-                              className="rounded-lg p-2 text-black/50 hover:bg-black/5 disabled:opacity-25"
+                              onDragEnd={() => setMusicDragId(null)}
+                              className="cursor-grab rounded-lg p-2 text-black/50 hover:bg-black/5 active:cursor-grabbing"
                             >
-                              <ArrowUp size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={`Move song ${index + 1} down`}
-                              disabled={index === profile.appearance.musicTracks.length - 1}
-                              onClick={() => {
-                                const tracks = [...profile.appearance.musicTracks];
-                                [tracks[index], tracks[index + 1]] = [
-                                  tracks[index + 1],
-                                  tracks[index]
-                                ];
-                                setMusicTracks(tracks);
-                              }}
-                              className="rounded-lg p-2 text-black/50 hover:bg-black/5 disabled:opacity-25"
-                            >
-                              <ArrowDown size={16} />
+                              <GripVertical size={17} />
                             </button>
                             <button
                               type="button"
@@ -3008,21 +3056,72 @@ export default function DashboardClient({
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
                 <h2 className="text-lg font-bold">Profile badges</h2>
                 <p className="mt-1 text-sm text-black/50">
-                  Badges are issued by Calvet administrators and cannot be
-                  self-assigned. This keeps verification and recognition marks
-                  trustworthy.
+                  Badges are issued by Calvet administrators. Choose which ones
+                  appear on your page, and drag to set their display order.
                 </p>
-                {badges.length > 0 ? (
-                  <ul className="mt-4 flex flex-wrap gap-2">
-                    {badges.map((badge) => (
+                {manageableBadges.length > 0 ? (
+                  <ol className="mt-4 space-y-2">
+                    {manageableBadges.map((badge, index) => (
                       <li
                         key={badge.id}
-                        className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold"
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (!badgeDragId || savingBadgePreferences) return;
+                          const reordered = reorderById(
+                            manageableBadges,
+                            badgeDragId,
+                            badge.id
+                          );
+                          setBadgeDragId(null);
+                          if (reordered !== manageableBadges) {
+                            void saveBadgePreferences([
+                              ...reordered,
+                              ...badges.filter((item) => item.kind === "creator")
+                            ]);
+                          }
+                        }}
+                        className={`flex items-center gap-3 rounded-xl border border-black/10 bg-white px-3 py-2.5 transition ${
+                          badgeDragId === badge.id ? "opacity-45" : ""
+                        }`}
                       >
-                        {badge.label}
+                        <button
+                          type="button"
+                          draggable={!savingBadgePreferences}
+                          aria-label={`Drag to reorder ${badge.label}, position ${index + 1}`}
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = "move";
+                            setBadgeDragId(badge.id);
+                          }}
+                          onDragEnd={() => setBadgeDragId(null)}
+                          className="cursor-grab text-black/35 hover:text-black/70 active:cursor-grabbing"
+                        >
+                          <GripVertical size={18} />
+                        </button>
+                        <span className="min-w-0 flex-1 text-sm font-semibold">
+                          {badge.label}
+                        </span>
+                        <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-black/55">
+                          <input
+                            type="checkbox"
+                            checked={badge.is_visible}
+                            disabled={savingBadgePreferences}
+                            onChange={(event) => {
+                              void saveBadgePreferences(
+                                badges.map((item) =>
+                                  item.id === badge.id
+                                    ? { ...item, is_visible: event.target.checked }
+                                    : item
+                                )
+                              );
+                            }}
+                            className="h-4 w-4 accent-violet"
+                          />
+                          Show
+                        </label>
                       </li>
                     ))}
-                  </ul>
+                  </ol>
                 ) : (
                   <p className="mt-4 text-sm text-black/40">No badges yet.</p>
                 )}

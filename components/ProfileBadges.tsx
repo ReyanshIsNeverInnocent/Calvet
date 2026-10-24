@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  Cat,
   CircleStar,
   Code2,
   Crown,
@@ -57,11 +58,11 @@ WHERE b.profile_id = p.id
   AND p.username = 'account'
   AND b.kind = 'creator';
 
-Built-in kinds: verified, founder, early, official-demo, developer, and
-the-one-and-only. Custom kinds must be 1-40 characters. Add a matching entry
-to BADGE_STYLES to choose its icon and color; otherwise the badge uses the
-default Sparkles icon and color. Labels must be 1-40 characters. Changing a
-badge kind also requires updating the matching BADGE_STYLES entry.
+Built-in kinds: verified, founder, early, official-demo, developer, friends,
+and the-one-and-only. Custom kinds must be 1-40 characters. Add a matching
+entry to BADGE_STYLES to choose its icon and color; otherwise the badge uses
+the default Sparkles icon and color. Labels must be 1-40 characters. Changing
+a badge kind also requires updating the matching BADGE_STYLES entry.
 */
 const BADGE_STYLES: Record<string, { Icon: LucideIcon; color: string }> = {
   verified: { Icon: BadgeCheck, color: "#60d8ff" },
@@ -69,11 +70,14 @@ const BADGE_STYLES: Record<string, { Icon: LucideIcon; color: string }> = {
   early: { Icon: CircleStar, color: "#ffd45c" },
   "official-demo": { Icon: Sparkles, color: "#ffbd59" },
   developer: { Icon: Code2, color: "#69e6b3" },
+  friends: { Icon: Cat, color: "#ff9bcf" },
   "the-one-and-only": { Icon: Infinity, color: "#c4a1ff" }
 };
 
 export default function ProfileBadges({ badges }: { badges: ProfileBadge[] }) {
-  const visibleBadges = badges.filter((badge) => badge.kind !== "creator");
+  const visibleBadges = badges
+    .filter((badge) => badge.is_visible && badge.kind !== "creator")
+    .sort((left, right) => left.position - right.position);
   if (visibleBadges.length === 0) return null;
 
   return (

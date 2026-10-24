@@ -141,6 +141,8 @@ export type ProfileBadge = {
   profile_id: string;
   kind: string;
   label: string;
+  is_visible: boolean;
+  position: number;
   issued_at: string;
 };
 

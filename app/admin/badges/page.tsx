@@ -17,6 +17,8 @@ type AdminBadgeRow = {
   badge_id: string | null;
   kind: string | null;
   label: string | null;
+  is_visible: boolean | null;
+  position: number | null;
   issued_at: string | null;
 };
 
@@ -50,9 +52,10 @@ export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
   let badges: ManagedBadge[] = [];
 
   if (username) {
-    const { data, error } = await supabase.rpc("admin_get_profile_badges", {
-      p_username: username
-    });
+    const { data, error } = await supabase.rpc(
+      "admin_get_profile_badges_with_preferences",
+      { p_username: username }
+    );
 
     if (error) {
       throw new Error(`Unable to load profile badges: ${error.message}`);
@@ -69,7 +72,9 @@ export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
           ? [{
               id: row.badge_id,
               kind: row.kind ?? "",
-              label: row.label ?? ""
+              label: row.label ?? "",
+              is_visible: row.is_visible ?? true,
+              position: row.position ?? 0
             }]
           : []
       );
@@ -95,6 +100,9 @@ export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
         </p>
 
         <BadgeManager
+          key={`${username}:${badges
+            .map((badge) => `${badge.id}:${badge.label}:${badge.is_visible}:${badge.position}`)
+            .join("|")}`}
           initialUsername={username}
           profile={profile}
           badges={badges}

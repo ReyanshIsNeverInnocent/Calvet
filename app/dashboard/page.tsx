@@ -62,6 +62,7 @@ export default async function DashboardPage() {
       .from("profile_badges")
       .select("*")
       .eq("profile_id", initialProfile.id)
+      .order("position")
       .order("issued_at"),
     supabase
       .from("profile_daily_views")
