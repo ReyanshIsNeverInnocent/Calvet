@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAppearance } from "@/lib/appearance";
+import { demoProfile } from "@/lib/demo-profile";
 import type { PublicProfileData } from "@/types/profile";
 
 export async function getPublicProfile(
@@ -22,7 +23,7 @@ export async function getPublicProfile(
   }
 
   if (!profile) {
-    return null;
+    return normalizedUsername === "demo" ? demoProfile : null;
   }
 
   const [socialsResult, projectsResult, mediaResult, badgesResult] =
