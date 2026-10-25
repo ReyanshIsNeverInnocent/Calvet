@@ -25,16 +25,18 @@ import { getSocialPlatform } from "@/lib/socials";
 
 export default function SocialPlatformIcon({
   platform,
-  size = 20
+  size = 20,
+  monochrome = false
 }: {
   platform: string;
   size?: number;
+  monochrome?: boolean;
 }) {
   const normalized = platform.toLowerCase();
   const iconProps = {
     "aria-hidden": true as const,
     size,
-    color: getSocialPlatform(normalized)?.color
+    color: monochrome ? "currentColor" : getSocialPlatform(normalized)?.color
   };
 
   if (normalized === "github") return <SiGithub {...iconProps} />;

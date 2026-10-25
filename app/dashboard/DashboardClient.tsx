@@ -11,9 +11,7 @@ import {
   type CSSProperties
 } from "react";
 import {
-  ArrowDown,
   Award,
-  ArrowUp,
   BarChart3,
   ExternalLink,
   Eye,
@@ -120,6 +118,48 @@ function reorderById<T extends { id: string }>(
   return reordered;
 }
 
+function animateReorder(container: HTMLElement | null, update: () => void) {
+  if (
+    !container ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    update();
+    return;
+  }
+
+  const previousPositions = new Map(
+    Array.from(container.querySelectorAll<HTMLElement>("[data-reorder-id]")).map(
+      (element) => [element.dataset.reorderId, element.getBoundingClientRect()]
+    )
+  );
+  update();
+
+  requestAnimationFrame(() => {
+    for (const element of container.querySelectorAll<HTMLElement>(
+      "[data-reorder-id]"
+    )) {
+      const previousPosition = previousPositions.get(element.dataset.reorderId);
+      if (!previousPosition) continue;
+
+      const nextPosition = element.getBoundingClientRect();
+      const deltaX = previousPosition.left - nextPosition.left;
+      const deltaY = previousPosition.top - nextPosition.top;
+      if (!deltaX && !deltaY) continue;
+
+      element.animate(
+        [
+          { transform: `translate(${deltaX}px, ${deltaY}px)` },
+          { transform: "translate(0, 0)" }
+        ],
+        {
+          duration: 240,
+          easing: "cubic-bezier(.2,.8,.2,1)"
+        }
+      );
+    }
+  });
+}
+
 function createUploadId() {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -175,6 +215,12 @@ type CropImageState =
   | {
       file: File;
       imageUrl: string;
+      target: "projectImageUpload";
+      projectId: string;
+    }
+  | {
+      file: File;
+      imageUrl: string;
       target: "musicCover";
       trackId: string;
     };
@@ -200,6 +246,7 @@ export default function DashboardClient({
   const [badges, setBadges] = useState(initialBadges);
   const [badgeDragId, setBadgeDragId] = useState<string | null>(null);
   const [musicDragId, setMusicDragId] = useState<string | null>(null);
+  const [socialDragId, setSocialDragId] = useState<string | null>(null);
   const [savingBadgePreferences, setSavingBadgePreferences] = useState(false);
   const views = initialViews;
   const [active, setActive] = useState<EditorSection>("profile");
@@ -208,6 +255,9 @@ export default function DashboardClient({
   const profileSaveRevision = useRef(0);
   const profileSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const previousProfile = useRef(profile);
+  const badgeListRef = useRef<HTMLOListElement>(null);
+  const musicListRef = useRef<HTMLOListElement>(null);
+  const socialListRef = useRef<HTMLDivElement>(null);
   const [reorderingSocials, setReorderingSocials] = useState(false);
   const [selectedSocialPlatform, setSelectedSocialPlatform] = useState("github");
   const [newSocialSuffix, setNewSocialSuffix] = useState("");
@@ -602,6 +652,19 @@ export default function DashboardClient({
       setCropImage({ file, imageUrl: URL.createObjectURL(file), target });
       return;
     }
+    if (target === "projectImageUpload") {
+      if (!projectId) {
+        setNotice("Could not identify the project for this image.");
+        return;
+      }
+      setCropImage({
+        file,
+        imageUrl: URL.createObjectURL(file),
+        target,
+        projectId
+      });
+      return;
+    }
 
     try {
       await uploadProfileImageFile(file, extension, target, projectId);
@@ -803,17 +866,11 @@ export default function DashboardClient({
     setNotice("Social link removed.");
   }
 
-  async function moveSocial(id: string, direction: -1 | 1) {
+  async function saveSocialOrder(reorderedSocials: SocialLink[]) {
     if (reorderingSocials) return;
 
-    const currentIndex = socials.findIndex((social) => social.id === id);
-    const nextIndex = currentIndex + direction;
-    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= socials.length) return;
-
-    const reordered = [...socials];
-    const [movedSocial] = reordered.splice(currentIndex, 1);
-    reordered.splice(nextIndex, 0, movedSocial);
-    const positionedSocials = reordered.map((social, position) => ({
+    const previousSocials = socials;
+    const positionedSocials = reorderedSocials.map((social, position) => ({
       ...social,
       position
     }));
@@ -840,7 +897,7 @@ export default function DashboardClient({
         .order("position");
 
       if (refreshError) {
-        setSocials(socials);
+        setSocials(previousSocials);
         setReorderingSocials(false);
         setNotice(
           `Could not save social order: ${failedUpdate.error.message}. Could not refresh the saved order: ${refreshError.message}`
@@ -1110,7 +1167,9 @@ export default function DashboardClient({
               ? "avatar"
               : cropImage.target === "bannerImageUpload"
                 ? "banner"
-                : "music cover"
+                : cropImage.target === "projectImageUpload"
+                  ? "project image"
+                  : "music cover"
           }
           onCancel={() => {
             URL.revokeObjectURL(cropImage.imageUrl);
@@ -1119,6 +1178,13 @@ export default function DashboardClient({
           onSave={async (image) => {
             if (cropImage.target === "musicCover") {
               await uploadMusicCoverFile(image, cropImage.trackId);
+            } else if (cropImage.target === "projectImageUpload") {
+              await uploadProfileImageFile(
+                image,
+                "png",
+                cropImage.target,
+                cropImage.projectId
+              );
             } else {
               await uploadProfileImageFile(image, "png", cropImage.target);
             }
@@ -2005,25 +2071,36 @@ export default function DashboardClient({
                 </label>
 
                 {profile.appearance.musicTracks.length > 0 && (
-                  <ol className="mt-5 space-y-3 border-t border-black/10 pt-5">
+                  <ol
+                    ref={musicListRef}
+                    className="mt-5 space-y-3 border-t border-black/10 pt-5"
+                  >
                     {profile.appearance.musicTracks.map((track, index) => (
                       <li
                         key={track.id}
-                        onDragOver={(event) => event.preventDefault()}
+                        data-reorder-id={track.id}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          if (!musicDragId || musicDragId === track.id) return;
+                          const reordered = reorderById(
+                            profile.appearance.musicTracks,
+                            musicDragId,
+                            track.id
+                          );
+                          if (reordered !== profile.appearance.musicTracks) {
+                            animateReorder(musicListRef.current, () =>
+                              setMusicTracks(reordered)
+                            );
+                          }
+                        }}
                         onDrop={(event) => {
                           event.preventDefault();
-                          if (!musicDragId) return;
-                          setMusicTracks(
-                            reorderById(
-                              profile.appearance.musicTracks,
-                              musicDragId,
-                              track.id
-                            )
-                          );
                           setMusicDragId(null);
                         }}
-                        className={`rounded-2xl border border-black/10 bg-black/[0.025] p-4 transition ${
-                          musicDragId === track.id ? "opacity-45" : ""
+                        className={`rounded-2xl border border-black/10 bg-black/[0.025] p-4 transition-[opacity,box-shadow,border-color] duration-200 ${
+                          musicDragId === track.id
+                            ? "scale-[.99] border-violet/35 bg-violet/5 opacity-55 shadow-lg"
+                            : ""
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -2056,10 +2133,11 @@ export default function DashboardClient({
                               aria-label={`Drag to reorder ${track.title || `song ${index + 1}`}`}
                               onDragStart={(event) => {
                                 event.dataTransfer.effectAllowed = "move";
+                                event.dataTransfer.setData("text/plain", track.id);
                                 setMusicDragId(track.id);
                               }}
                               onDragEnd={() => setMusicDragId(null)}
-                              className="cursor-grab rounded-lg p-2 text-black/50 hover:bg-black/5 active:cursor-grabbing"
+                              className="cursor-grab touch-none rounded-lg p-2 text-black/45 transition hover:bg-violet/10 hover:text-violet active:cursor-grabbing active:bg-violet/15"
                             >
                               <GripVertical size={17} />
                             </button>
@@ -2263,7 +2341,19 @@ export default function DashboardClient({
                   <div className="h-px bg-white/[0.07]" />
 
                   {socials.length > 0 ? (
-                    <div className="grid gap-2.5">
+                    <div
+                      ref={socialListRef}
+                      className="grid gap-2.5"
+                      onDragOver={(event) => {
+                        if (socialDragId) event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (!socialDragId || reorderingSocials) return;
+                        setSocialDragId(null);
+                        void saveSocialOrder(socials);
+                      }}
+                    >
                     {socials.map((social, index) => {
                       const platformOption = getSocialPlatform(social.platform);
                       const socialSuffix =
@@ -2272,10 +2362,48 @@ export default function DashboardClient({
                       return (
                         <div
                           key={social.id}
-                          className="grid gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-white/[0.14] hover:bg-white/[0.04] sm:grid-cols-[minmax(9rem,.72fr)_minmax(0,1.6fr)_auto_auto_auto] sm:items-center sm:p-3.5"
+                          data-reorder-id={social.id}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            if (!socialDragId || socialDragId === social.id) return;
+                            const reordered = reorderById(
+                              socials,
+                              socialDragId,
+                              social.id
+                            );
+                            if (reordered !== socials) {
+                              animateReorder(socialListRef.current, () =>
+                                setSocials(
+                                  reordered.map((item, position) => ({
+                                    ...item,
+                                    position
+                                  }))
+                                )
+                              );
+                            }
+                          }}
+                          className={`grid gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3 transition-[opacity,border-color,background-color,box-shadow] duration-200 hover:border-white/[0.14] hover:bg-white/[0.04] sm:grid-cols-[minmax(9rem,.72fr)_minmax(0,1.6fr)_auto_auto] sm:items-center sm:p-3.5 ${
+                            socialDragId === social.id
+                                ? "scale-[.99] border-violet-300/50 bg-violet-300/[0.08] opacity-55 shadow-lg"
+                              : ""
+                          }`}
                         >
                       <div className="flex min-w-0 items-center gap-3">
-                        <span
+                          <button
+                            type="button"
+                            draggable={!reorderingSocials}
+                            aria-label={`Drag to reorder ${platformOption?.label ?? social.platform}, position ${index + 1}`}
+                            onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", social.id);
+                              setSocialDragId(social.id);
+                            }}
+                            onDragEnd={() => setSocialDragId(null)}
+                            className="cursor-grab touch-none rounded-lg p-1.5 text-white/35 transition hover:bg-white/[0.08] hover:text-white/80 active:cursor-grabbing active:bg-violet-300/15"
+                          >
+                            <GripVertical size={17} />
+                          </button>
+                          <span
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-black/20"
                           style={{ color: platformOption?.color ?? "#aaa5b5" }}
                         >
@@ -2353,7 +2481,7 @@ export default function DashboardClient({
                         </span>
                       </label>
 
-                      <label className="inline-flex cursor-pointer items-center gap-2 justify-self-start text-xs text-white/45 sm:justify-self-center">
+                      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl px-2 text-xs font-medium text-white/65 transition hover:bg-white/[0.04] sm:justify-self-center">
                         <input
                           type="checkbox"
                           checked={social.enabled}
@@ -2365,31 +2493,9 @@ export default function DashboardClient({
                           }
                           className="peer sr-only"
                         />
-                        <span className="relative h-5 w-9 rounded-full bg-white/15 transition after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-[#a78bfa] peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-white/50">
-                        </span>
-                        <span className="sr-only">{social.enabled ? "Visible" : "Hidden"}</span>
+                        <span className="relative h-6 w-11 shrink-0 rounded-full border border-white/15 bg-black/40 transition-colors peer-checked:border-[#a78bfa]/70 peer-checked:bg-[#a78bfa] peer-focus-visible:ring-2 peer-focus-visible:ring-[#c4b5fd]/70 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white/75 after:shadow-sm after:transition-transform peer-checked:after:translate-x-5 peer-checked:after:bg-white" />
+                        <span>{social.enabled ? "Shown" : "Hidden"}</span>
                       </label>
-
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void moveSocial(social.id, -1)}
-                          disabled={index === 0 || reorderingSocials}
-                          aria-label={`Move ${social.platform} social link up`}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-white/40 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-20"
-                        >
-                          <ArrowUp size={17} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void moveSocial(social.id, 1)}
-                          disabled={index === socials.length - 1 || reorderingSocials}
-                          aria-label={`Move ${social.platform} social link down`}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-white/40 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-20"
-                        >
-                          <ArrowDown size={17} />
-                        </button>
-                      </div>
 
                       <button
                         type="button"
@@ -2799,6 +2905,57 @@ export default function DashboardClient({
               </div>
 
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+                <h2 className="text-lg font-bold">Profile section labels</h2>
+                <p className="mt-1 text-sm text-black/50">
+                  Personalize the headings shown above your projects and media.
+                </p>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <label className="text-sm font-semibold">
+                    Projects heading
+                    <input
+                      value={profile.appearance.projectsHeading}
+                      onChange={(event) =>
+                        updateAppearance("projectsHeading", event.target.value)
+                      }
+                      maxLength={32}
+                      placeholder="Projects"
+                      className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 font-normal outline-none focus:border-violet"
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Media heading
+                    <input
+                      value={profile.appearance.mediaHeading}
+                      onChange={(event) =>
+                        updateAppearance("mediaHeading", event.target.value)
+                      }
+                      maxLength={32}
+                      placeholder="Media"
+                      className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 font-normal outline-none focus:border-violet"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+                <h2 className="text-lg font-bold">Social icon style</h2>
+                <p className="mt-1 text-sm text-black/50">
+                  Social icons use each platform’s colors by default.
+                </p>
+                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-black/10 bg-white/70 p-4 text-sm font-medium transition hover:bg-white">
+                  <input
+                    type="checkbox"
+                    checked={profile.appearance.socialsMonochrome}
+                    onChange={(event) =>
+                      updateAppearance("socialsMonochrome", event.target.checked)
+                    }
+                    className="h-4 w-4 accent-violet"
+                  />
+                  Use monochrome social icons
+                </label>
+              </div>
+
+              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
                 <h2 className="text-lg font-bold">Account</h2>
                 <p className="mt-2 text-sm text-black/55">
                   Signed in as <span className="font-semibold">{userEmail}</span>
@@ -2844,29 +3001,49 @@ export default function DashboardClient({
                   appear on your page, and drag to set their display order.
                 </p>
                 {manageableBadges.length > 0 ? (
-                  <ol className="mt-4 space-y-2">
+                  <ol ref={badgeListRef} className="mt-4 space-y-2">
                     {manageableBadges.map((badge, index) => (
                       <li
                         key={badge.id}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={(event) => {
+                        data-reorder-id={badge.id}
+                        onDragOver={(event) => {
                           event.preventDefault();
-                          if (!badgeDragId || savingBadgePreferences) return;
+                          if (
+                            !badgeDragId ||
+                            badgeDragId === badge.id ||
+                            savingBadgePreferences
+                          ) {
+                            return;
+                          }
                           const reordered = reorderById(
                             manageableBadges,
                             badgeDragId,
                             badge.id
                           );
-                          setBadgeDragId(null);
                           if (reordered !== manageableBadges) {
-                            void saveBadgePreferences([
-                              ...reordered,
-                              ...badges.filter((item) => item.kind === "creator")
-                            ]);
+                            animateReorder(badgeListRef.current, () => {
+                              const positioned = reordered.map((item, position) => ({
+                                ...item,
+                                position
+                              }));
+                              setBadges([
+                                ...positioned,
+                                ...badges.filter((item) => item.kind === "creator")
+                              ]);
+                            });
                           }
                         }}
-                        className={`flex items-center gap-3 rounded-xl border border-black/10 bg-white px-3 py-2.5 transition ${
-                          badgeDragId === badge.id ? "opacity-45" : ""
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (!badgeDragId || savingBadgePreferences) return;
+                          void saveBadgePreferences([
+                            ...manageableBadges,
+                            ...badges.filter((item) => item.kind === "creator")
+                          ]);
+                          setBadgeDragId(null);
+                        }}
+                        className={`flex items-center gap-3 rounded-xl border border-black/10 bg-white px-3 py-2.5 transition-[opacity,border-color,background-color,box-shadow] duration-200 ${
+                          badgeDragId === badge.id ? "scale-[.99] border-violet/35 bg-violet/5 opacity-55 shadow-lg" : ""
                         }`}
                       >
                         <button
@@ -2875,10 +3052,11 @@ export default function DashboardClient({
                           aria-label={`Drag to reorder ${badge.label}, position ${index + 1}`}
                           onDragStart={(event) => {
                             event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", badge.id);
                             setBadgeDragId(badge.id);
                           }}
                           onDragEnd={() => setBadgeDragId(null)}
-                          className="cursor-grab text-black/35 hover:text-black/70 active:cursor-grabbing"
+                          className="cursor-grab touch-none rounded-lg p-1.5 text-black/35 transition hover:bg-violet/10 hover:text-violet active:cursor-grabbing active:bg-violet/15"
                         >
                           <GripVertical size={18} />
                         </button>

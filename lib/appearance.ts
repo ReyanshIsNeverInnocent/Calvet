@@ -30,6 +30,9 @@ export const defaultAppearance: Appearance = {
   musicArtist: "",
   musicCoverUrl: "",
   musicTracks: [],
+  socialsMonochrome: false,
+  projectsHeading: "Projects",
+  mediaHeading: "Media",
   avatarImageUpload: "",
   bannerImageUpload: "",
   backgroundImageUpload: "",
@@ -154,6 +157,18 @@ export function getAppearance(value: Partial<Appearance> | null | undefined): Ap
     musicCoverUrl:
       typeof appearance.musicCoverUrl === "string" ? appearance.musicCoverUrl : "",
     musicTracks: normalizedTracks,
+    socialsMonochrome:
+      typeof appearance.socialsMonochrome === "boolean"
+        ? appearance.socialsMonochrome
+        : defaultAppearance.socialsMonochrome,
+    projectsHeading:
+      typeof appearance.projectsHeading === "string"
+        ? appearance.projectsHeading.trim().slice(0, 32)
+        : defaultAppearance.projectsHeading,
+    mediaHeading:
+      typeof appearance.mediaHeading === "string"
+        ? appearance.mediaHeading.trim().slice(0, 32)
+        : defaultAppearance.mediaHeading,
     avatarImageUpload:
       typeof appearance.avatarImageUpload === "string" ? appearance.avatarImageUpload : "",
     bannerImageUpload:

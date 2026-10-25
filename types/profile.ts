@@ -56,6 +56,9 @@ export type Appearance = {
   musicArtist: string;
   musicCoverUrl: string;
   musicTracks: MusicTrack[];
+  socialsMonochrome: boolean;
+  projectsHeading: string;
+  mediaHeading: string;
   avatarImageUpload: string;
   bannerImageUpload: string;
   backgroundImageUpload: string;

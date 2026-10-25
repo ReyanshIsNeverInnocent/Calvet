@@ -2,25 +2,36 @@
 
 import {
   ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
   MapPin,
   Music2,
   Pause,
   Play,
   SkipBack,
   SkipForward,
+  X,
   UserRound,
   Volume2,
   VolumeX
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type WheelEvent
+} from "react";
 import { createClient } from "@/lib/supabase/browser";
 import ProfileBadges from "@/components/ProfileBadges";
 import SocialPlatformIcon from "@/components/SocialPlatformIcon";
 import UsernameEffect from "@/components/UsernameEffect";
 import { isHttpUrl } from "@/lib/music";
 import { getSocialPlatform } from "@/lib/socials";
-import type { PublicProfileData } from "@/types/profile";
+import type { ProfileMedia, PublicProfileData } from "@/types/profile";
 
 const MAX_AUDIO_VOLUME = 0.5;
 
@@ -111,6 +122,16 @@ export default function ProfileRenderer({
       ? appearance.musicTracks.filter((track) => isHttpUrl(track.url))
       : [];
   const audioRef = useRef<HTMLAudioElement>(null);
+  const mediaViewerStageRef = useRef<HTMLDivElement>(null);
+  const mediaGesture = useRef({
+    pointers: new Map<number, { x: number; y: number }>(),
+    startDistance: 0,
+    startZoom: 1,
+    startScrollLeft: 0,
+    startScrollTop: 0,
+    anchorX: 0,
+    anchorY: 0
+  });
   const resumeAfterTrackChange = useRef(false);
   const [entered, setEntered] = useState(preview);
   const [activeTrackIndex, setActiveTrackIndex] = useState(0);
@@ -121,8 +142,207 @@ export default function ProfileRenderer({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackError, setPlaybackError] = useState(false);
+  const [activeMediaIndex, setActiveMediaIndex] = useState<number | null>(null);
+  const [mediaZoom, setMediaZoom] = useState(1);
+  const [mediaNaturalSize, setMediaNaturalSize] = useState({ width: 0, height: 0 });
+  const [mediaStageSize, setMediaStageSize] = useState({ width: 0, height: 0 });
   const activeTrack = musicTracks[activeTrackIndex] ?? musicTracks[0];
   const musicUrl = activeTrack?.url ?? null;
+  const activeMedia: ProfileMedia | null =
+    activeMediaIndex === null ? null : data.media[activeMediaIndex] ?? null;
+  const mediaFitScale =
+    mediaNaturalSize.width > 0 &&
+    mediaNaturalSize.height > 0 &&
+    mediaStageSize.width > 0 &&
+    mediaStageSize.height > 0
+      ? Math.min(
+          1,
+          mediaStageSize.width / mediaNaturalSize.width,
+          mediaStageSize.height / mediaNaturalSize.height
+        )
+      : 0;
+  const mediaViewerWidth = mediaNaturalSize.width * mediaFitScale * mediaZoom;
+  const mediaViewerHeight = mediaNaturalSize.height * mediaFitScale * mediaZoom;
+
+  function clampMediaZoom(value: number) {
+    return Math.max(1, Math.min(4, value));
+  }
+
+  function zoomMediaAt(nextZoom: number, anchorX: number, anchorY: number) {
+    const stage = mediaViewerStageRef.current;
+    if (!stage) return;
+
+    const previousZoom = mediaZoom;
+    const clampedZoom = clampMediaZoom(nextZoom);
+    if (clampedZoom === previousZoom) return;
+
+    const contentX = stage.scrollLeft + anchorX;
+    const contentY = stage.scrollTop + anchorY;
+    setMediaZoom(clampedZoom);
+    requestAnimationFrame(() => {
+      stage.scrollLeft = Math.max(
+        0,
+        contentX * (clampedZoom / previousZoom) - anchorX
+      );
+      stage.scrollTop = Math.max(
+        0,
+        contentY * (clampedZoom / previousZoom) - anchorY
+      );
+    });
+  }
+
+  function handleMediaWheel(event: WheelEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const nextZoom = mediaZoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12);
+    zoomMediaAt(
+      nextZoom,
+      event.clientX - bounds.left,
+      event.clientY - bounds.top
+    );
+  }
+
+  function handleMediaPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+
+    const stage = event.currentTarget;
+    stage.setPointerCapture(event.pointerId);
+    const points = mediaGesture.current.pointers;
+    points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (points.size === 2) {
+      const [first, second] = Array.from(points.values());
+      const bounds = stage.getBoundingClientRect();
+      mediaGesture.current = {
+        ...mediaGesture.current,
+        startDistance: Math.hypot(second.x - first.x, second.y - first.y),
+        startZoom: mediaZoom,
+        startScrollLeft: stage.scrollLeft,
+        startScrollTop: stage.scrollTop,
+        anchorX: (first.x + second.x) / 2 - bounds.left,
+        anchorY: (first.y + second.y) / 2 - bounds.top
+      };
+    }
+  }
+
+  function handleMediaPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const gesture = mediaGesture.current;
+    const previousPoint = gesture.pointers.get(event.pointerId);
+    if (!previousPoint) return;
+
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (gesture.pointers.size >= 2 && gesture.startDistance > 0) {
+      event.preventDefault();
+      const [first, second] = Array.from(gesture.pointers.values());
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      const nextZoom = clampMediaZoom(
+        gesture.startZoom * (distance / gesture.startDistance)
+      );
+      const stage = event.currentTarget;
+      const ratio = nextZoom / gesture.startZoom;
+      setMediaZoom(nextZoom);
+      requestAnimationFrame(() => {
+        stage.scrollLeft = Math.max(
+          0,
+          (gesture.startScrollLeft + gesture.anchorX) * ratio - gesture.anchorX
+        );
+        stage.scrollTop = Math.max(
+          0,
+          (gesture.startScrollTop + gesture.anchorY) * ratio - gesture.anchorY
+        );
+      });
+    } else if (gesture.pointers.size === 1 && mediaZoom > 1) {
+      event.preventDefault();
+      event.currentTarget.scrollLeft -= event.clientX - previousPoint.x;
+      event.currentTarget.scrollTop -= event.clientY - previousPoint.y;
+    }
+  }
+
+  function handleMediaPointerUp(event: PointerEvent<HTMLDivElement>) {
+    mediaGesture.current.pointers.delete(event.pointerId);
+    if (mediaGesture.current.pointers.size < 2) {
+      mediaGesture.current.startDistance = 0;
+    }
+  }
+
+  useEffect(() => {
+    if (!activeMedia) return;
+    const stage = mediaViewerStageRef.current;
+    if (!stage) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      setMediaStageSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height
+      });
+    });
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [activeMedia]);
+
+  useEffect(() => {
+    if (!activeMedia) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActiveMediaIndex(null);
+      } else if (event.key === "ArrowLeft" && data.media.length > 1) {
+        setActiveMediaIndex((current) =>
+          current === null
+            ? null
+            : (current - 1 + data.media.length) % data.media.length
+        );
+      } else if (event.key === "ArrowRight" && data.media.length > 1) {
+        setActiveMediaIndex((current) =>
+          current === null ? null : (current + 1) % data.media.length
+        );
+      } else if (event.key === "+" || event.key === "=") {
+        setMediaZoom((current) => Math.min(4, Number((current + 0.25).toFixed(2))));
+      } else if (event.key === "-") {
+        setMediaZoom((current) => Math.max(1, Number((current - 0.25).toFixed(2))));
+      } else if (event.key === "0") {
+        setMediaZoom(1);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeMedia, data.media.length]);
+
+  useEffect(() => {
+    if (!mediaViewerStageRef.current || !activeMedia || activeMedia.media_type !== "image") {
+      return;
+    }
+    const stage = mediaViewerStageRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      stage.scrollTo({
+        left: Math.max(0, (stage.scrollWidth - stage.clientWidth) / 2),
+        top: Math.max(0, (stage.scrollHeight - stage.clientHeight) / 2)
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeMedia, mediaNaturalSize, mediaStageSize]);
+
+  function openMedia(index: number) {
+    setMediaZoom(1);
+    setMediaNaturalSize({ width: 0, height: 0 });
+    setActiveMediaIndex(index);
+  }
+
+  function moveMediaViewer(direction: -1 | 1) {
+    setMediaZoom(1);
+    setMediaNaturalSize({ width: 0, height: 0 });
+    setActiveMediaIndex((current) =>
+      current === null
+        ? null
+        : (current + direction + data.media.length) % data.media.length
+    );
+  }
 
   useEffect(() => {
     if (preview || !profile.is_public) return;
@@ -445,6 +665,41 @@ export default function ProfileRenderer({
                 </div>
               )}
 
+              {socials.length > 0 && (
+                <div className="profile-socials mt-5 flex flex-wrap justify-center gap-2">
+                  {socials.map((social, index) => {
+                    const platform = getSocialPlatform(social.platform);
+                    return (
+                      <a
+                        key={social.id}
+                        href={social.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        aria-label={platform?.label ?? social.platform}
+                        className={`social-button profile-surface flex h-10 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${profile.mode === "social" ? "px-3" : "w-10"} ${motion}`}
+                        style={{
+                          ...cardStyle,
+                          color: appearance.socialsMonochrome
+                            ? appearance.textColor
+                            : platform?.color,
+                          animationDelay: motionDisabled ? undefined : `${index * 70}ms`
+                        }}
+                      >
+                        <SocialPlatformIcon
+                          platform={social.platform}
+                          monochrome={appearance.socialsMonochrome}
+                        />
+                        {profile.mode === "social" && (
+                          <span className="ml-2 text-xs">
+                            {platform?.label ?? social.platform}
+                          </span>
+                        )}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+
               {musicUrl && (
                 <section
                   className={`profile-music profile-surface mx-auto mt-5 w-full max-w-xl border p-3 text-left sm:p-4 ${playing ? "is-playing" : ""}`}
@@ -661,31 +916,6 @@ export default function ProfileRenderer({
                 </section>
               )}
 
-              {socials.length > 0 && (
-                <div className="profile-socials mt-5 flex flex-wrap justify-center gap-2">
-                  {socials.map((social, index) => (
-                    <a
-                      key={social.id}
-                      href={social.url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      aria-label={getSocialPlatform(social.platform)?.label ?? social.platform}
-                      className={`social-button profile-surface flex h-10 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${profile.mode === "social" ? "px-3" : "w-10"} ${motion}`}
-                      style={{
-                        ...cardStyle,
-                        animationDelay: motionDisabled ? undefined : `${index * 70}ms`
-                      }}
-                    >
-                      <SocialPlatformIcon platform={social.platform} />
-                      {profile.mode === "social" && (
-                        <span className="ml-2 text-xs">
-                          {getSocialPlatform(social.platform)?.label ?? social.platform}
-                        </span>
-                      )}
-                    </a>
-                  ))}
-                </div>
-              )}
             </section>
 
             {projects.length > 0 && (
@@ -693,7 +923,7 @@ export default function ProfileRenderer({
                 className={`profile-projects ${spacing.projects} ${profile.mode === "portfolio" ? "order-2" : "order-3"}`}
               >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
-                  Projects
+                  {appearance.projectsHeading || "Projects"}
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {projects.map((project, index) => {
@@ -702,23 +932,28 @@ export default function ProfileRenderer({
                       ...cardStyle,
                       animationDelay: motionDisabled ? undefined : `${index * 110}ms`
                     };
+                    const projectImage =
+                      project.image_upload_url || project.image_url;
                     const projectCardContent = (
-                      <>
-                        {(project.image_upload_url || project.image_url) && (
-                          <div className="relative h-36 overflow-hidden">
+                      <div
+                        className={`flex items-start gap-3 sm:gap-4 ${
+                          projectImage ? "p-3 sm:p-4" : "p-4"
+                        }`}
+                      >
+                        {projectImage && (
+                          <div className="relative aspect-square w-[4.5rem] shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-black/20 sm:w-20">
                             <Image
-                              src={project.image_upload_url || project.image_url}
-                              alt=""
+                              src={projectImage}
+                              alt={`${project.title} preview`}
                               fill
                               unoptimized
-                              className="object-cover transition duration-500 group-hover:scale-105"
+                              className="object-contain p-1 transition duration-300 group-hover:scale-[1.04]"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#0e0d13]/50 to-transparent" />
                           </div>
                         )}
-                        <div className="p-4">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-3">
-                            <h3 className="font-semibold">{project.title}</h3>
+                            <h3 className="line-clamp-2 min-w-0 font-semibold">{project.title}</h3>
                             {project.url && (
                               <ArrowUpRight
                                 size={16}
@@ -727,24 +962,29 @@ export default function ProfileRenderer({
                             )}
                           </div>
                           {project.description && (
-                            <p className="mt-2 text-sm leading-6 text-white/45">
+                            <p className="mt-1.5 line-clamp-2 text-sm leading-5 text-white/45">
                               {project.description}
                             </p>
                           )}
                           {project.tags.length > 0 && (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {project.tags.map((tag) => (
+                            <div className="mt-2.5 flex max-w-full flex-nowrap gap-1.5 overflow-hidden">
+                              {project.tags.slice(0, 3).map((tag) => (
                                 <span
                                   key={tag}
-                                  className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-xs text-white/55"
+                                  className="max-w-[7rem] shrink-0 truncate whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.035] px-2 py-0.5 text-[10px] text-white/55"
                                 >
                                   {tag}
                                 </span>
                               ))}
+                              {project.tags.length > 3 && (
+                                <span className="shrink-0 px-1 py-0.5 text-[10px] text-white/40">
+                                  +{project.tags.length - 3}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
-                      </>
+                      </div>
                     );
 
                     return project.url ? (
@@ -777,36 +1017,43 @@ export default function ProfileRenderer({
                 className={`profile-media ${spacing.projects} order-4`}
               >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
-                  Media
+                  {appearance.mediaHeading || "Media"}
                 </h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {data.media.map((item) => (
-                    <figure
-                      key={item.id}
-                      className="profile-surface overflow-hidden border"
-                      style={cardStyle}
-                    >
-                      {item.media_type === "video" ? (
-                        <video
-                          controls
-                          preload="metadata"
-                          playsInline
-                          className="aspect-video w-full bg-black object-contain"
-                          aria-label={item.title || "Shared video"}
-                          src={item.media_url}
-                        />
-                      ) : (
-                        <Image
-                          src={item.media_url || ""}
-                          alt={item.title || "Shared image"}
-                          width={1200}
-                          height={900}
-                          unoptimized
-                          className="max-h-96 w-full object-contain"
-                        />
-                      )}
+                <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
+                  {data.media.map((item, index) => (
+                    <figure key={item.id} className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => openMedia(index)}
+                        aria-label={`Open ${item.media_type === "video" ? "video" : "image"}: ${item.title || `media ${index + 1}`}`}
+                        className="profile-media-thumbnail profile-surface group relative block aspect-square w-full overflow-hidden rounded-2xl border text-left transition duration-200 hover:-translate-y-1 hover:scale-[1.025] hover:border-white/25 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--profile-accent-color)]"
+                        style={cardStyle}
+                      >
+                        {item.media_type === "video" ? (
+                          <video
+                            muted
+                            preload="metadata"
+                            playsInline
+                            className="h-full w-full bg-black/30 object-cover"
+                            aria-hidden="true"
+                            src={item.media_url}
+                          />
+                        ) : (
+                          <Image
+                            src={item.media_url || ""}
+                            alt=""
+                            fill
+                            unoptimized
+                            sizes="(max-width: 640px) 30vw, (max-width: 1024px) 22vw, 18vw"
+                            className="object-cover transition duration-300 group-hover:scale-105"
+                          />
+                        )}
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100 group-focus-visible:bg-black/25 group-focus-visible:opacity-100">
+                          <ArrowUpRight size={22} />
+                        </span>
+                      </button>
                       {item.title && (
-                        <figcaption className="px-3 py-2 text-xs text-white/65">
+                        <figcaption className="mt-1.5 truncate px-1 text-[11px] text-white/50">
                           {item.title}
                         </figcaption>
                       )}
@@ -819,6 +1066,121 @@ export default function ProfileRenderer({
         </article>
 
       </div>
+      {activeMedia && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-3 backdrop-blur-md sm:p-6"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setActiveMediaIndex(null);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={activeMedia.title || "Media viewer"}
+            className="flex max-h-full w-full max-w-6xl flex-col items-center"
+          >
+            <div className="mb-3 flex w-full items-center justify-between gap-3 text-white">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {activeMedia.title || "Media"}
+                </p>
+                <p className="mt-0.5 text-xs text-white/45">
+                  {(activeMediaIndex ?? 0) + 1} / {data.media.length}
+                  {activeMedia.media_type === "image" && ` · ${Math.round(mediaZoom * 100)}%`}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Close media viewer"
+                  onClick={() => setActiveMediaIndex(null)}
+                  className="ml-1 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:bg-white/15"
+                >
+                  <X size={19} />
+                </button>
+              </div>
+            </div>
+
+            <div className="relative flex min-h-0 w-full flex-1 items-center justify-center">
+              {data.media.length > 1 && (
+                <button
+                  type="button"
+                  aria-label="Previous media"
+                  onClick={() => moveMediaViewer(-1)}
+                  className="absolute left-0 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/55 text-white/80 transition hover:bg-black/80 sm:left-2 sm:h-12 sm:w-12"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+              )}
+              {activeMedia.media_type === "video" ? (
+                <video
+                  controls
+                  autoPlay
+                  preload="metadata"
+                  playsInline
+                  className="max-h-[76vh] max-w-[min(84vw,1100px)] rounded-xl bg-black object-contain"
+                  src={activeMedia.media_url}
+                />
+              ) : (
+                <div
+                  ref={mediaViewerStageRef}
+                  className="h-[min(76vh,800px)] w-[min(92vw,1200px)] touch-none overflow-hidden rounded-xl"
+                  style={{ touchAction: "none" }}
+                  onWheel={handleMediaWheel}
+                  onPointerDown={handleMediaPointerDown}
+                  onPointerMove={handleMediaPointerMove}
+                  onPointerUp={handleMediaPointerUp}
+                  onPointerCancel={handleMediaPointerUp}
+                  aria-label="Image viewer. Scroll or pinch to zoom; drag to pan while zoomed."
+                >
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      minWidth: Math.max(mediaStageSize.width, mediaViewerWidth),
+                      minHeight: Math.max(mediaStageSize.height, mediaViewerHeight)
+                    }}
+                  >
+                    <Image
+                      src={activeMedia.media_url || ""}
+                      alt={activeMedia.title || "Shared image"}
+                      width={mediaNaturalSize.width || 1200}
+                      height={mediaNaturalSize.height || 900}
+                      unoptimized
+                      onLoad={(event) =>
+                        setMediaNaturalSize({
+                          width: event.currentTarget.naturalWidth,
+                          height: event.currentTarget.naturalHeight
+                        })
+                      }
+                      className="max-w-none object-contain"
+                      style={{
+                        width: mediaViewerWidth || "100%",
+                        height: mediaViewerHeight || "100%"
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              {data.media.length > 1 && (
+                <button
+                  type="button"
+                  aria-label="Next media"
+                  onClick={() => moveMediaViewer(1)}
+                  className="absolute right-0 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/55 text-white/80 transition hover:bg-black/80 sm:right-2 sm:h-12 sm:w-12"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              )}
+            </div>
+            <p className="mt-3 text-center text-[11px] text-white/35">
+              {activeMedia.media_type === "image"
+                ? "Scroll or pinch to zoom. Drag to pan when zoomed; use arrow keys to browse."
+                : "Use the arrow keys to browse media."}
+            </p>
+          </section>
+        </div>
+      )}
       {!preview && !entered && (
         <button
           type="button"
