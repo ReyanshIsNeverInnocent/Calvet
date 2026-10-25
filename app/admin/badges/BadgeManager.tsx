@@ -27,6 +27,7 @@ const BUILT_IN_BADGES = [
   ["developer", "Developer"],
   ["friends", "Friends"],
   ["first-user-except-founder", "First User (except the founder)"],
+  ["diva", "Diva"],
   ["the-one-and-only", "The One and Only"]
 ] as const;
 

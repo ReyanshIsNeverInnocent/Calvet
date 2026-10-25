@@ -5,6 +5,7 @@ import {
   Code2,
   Crown,
   Infinity,
+  Smile,
   Sparkles,
   type LucideIcon
 } from "lucide-react";
@@ -59,11 +60,11 @@ WHERE b.profile_id = p.id
   AND b.kind = 'creator';
 
 Built-in kinds: verified, founder, early, official-demo, developer, friends,
-first-user-except-founder, and the-one-and-only. Custom kinds must be 1-40
-characters. Add a matching entry to BADGE_STYLES to choose its icon and color;
-otherwise the badge uses the default Sparkles icon and color. Labels must be
-1-40 characters. Changing a badge kind also requires updating the matching
-BADGE_STYLES entry.
+first-user-except-founder, diva, and the-one-and-only. Custom kinds must be
+1-40 characters. Add a matching entry to BADGE_STYLES to choose its icon and
+color; otherwise the badge uses the default Sparkles icon and color. Labels
+must be 1-40 characters. Changing a badge kind also requires updating the
+matching BADGE_STYLES entry.
 */
 
 function BowTieIcon({
@@ -94,7 +95,8 @@ const BADGE_STYLES: Record<
   "official-demo": { Icon: Sparkles, color: "#ffbd59" },
   developer: { Icon: Code2, color: "#69e6b3" },
   friends: { Icon: Cat, color: "#ff9bcf" },
-  "first-user-except-founder": { Icon: BowTieIcon, color: "#ef4444" },
+  "first-user-except-founder": { Icon: Smile, color: "#facc15" },
+  diva: { Icon: BowTieIcon, color: "#ef4444" },
   "the-one-and-only": { Icon: Infinity, color: "#c4a1ff" }
 };
 
