@@ -1,16 +1,7 @@
 "use client";
 
 import {
-  SiGithub,
-  SiInstagram,
-  SiTwitch,
-  SiX,
-  SiYoutube
-} from "@icons-pack/react-simple-icons";
-import {
   ArrowUpRight,
-  BriefcaseBusiness,
-  Link2,
   MapPin,
   Music2,
   Pause,
@@ -25,26 +16,13 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import ProfileBadges from "@/components/ProfileBadges";
+import SocialPlatformIcon from "@/components/SocialPlatformIcon";
 import UsernameEffect from "@/components/UsernameEffect";
 import { isHttpUrl } from "@/lib/music";
+import { getSocialPlatform } from "@/lib/socials";
 import type { PublicProfileData } from "@/types/profile";
 
 const MAX_AUDIO_VOLUME = 0.5;
-
-function ProfileIcon({ name, size = 18 }: { name: string; size?: number }) {
-  const normalized = name.toLowerCase();
-
-  if (normalized === "github") return <SiGithub aria-hidden="true" size={size} />;
-  if (normalized === "instagram") return <SiInstagram aria-hidden="true" size={size} />;
-  if (normalized === "youtube") return <SiYoutube aria-hidden="true" size={size} />;
-  if (normalized === "twitch") return <SiTwitch aria-hidden="true" size={size} />;
-  if (normalized === "spotify" || normalized === "music") return <Music2 aria-hidden="true" size={size} />;
-  if (normalized === "linkedin" || normalized === "briefcase") return <BriefcaseBusiness aria-hidden="true" size={size} />;
-  if (normalized === "x" || normalized === "twitter") return <SiX aria-hidden="true" size={size} />;
-  if (normalized === "link") return <Link2 aria-hidden="true" size={size} />;
-
-  return <ArrowUpRight aria-hidden="true" size={size} />;
-}
 
 export default function ProfileRenderer({
   data,
@@ -53,7 +31,7 @@ export default function ProfileRenderer({
   data: PublicProfileData;
   preview?: boolean;
 }) {
-  const { profile, links, socials, projects } = data;
+  const { profile, socials, projects } = data;
   const supabase = useMemo(() => createClient(), []);
   const appearance = profile.appearance;
   const avatarImage = appearance.avatarImageUpload || profile.avatar_url;
@@ -691,66 +669,24 @@ export default function ProfileRenderer({
                       href={social.url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      aria-label={social.platform}
+                      aria-label={getSocialPlatform(social.platform)?.label ?? social.platform}
                       className={`social-button profile-surface flex h-10 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${profile.mode === "social" ? "px-3" : "w-10"} ${motion}`}
                       style={{
                         ...cardStyle,
                         animationDelay: motionDisabled ? undefined : `${index * 70}ms`
                       }}
                     >
-                      <ProfileIcon name={social.platform} />
+                      <SocialPlatformIcon platform={social.platform} />
                       {profile.mode === "social" && (
-                        <span className="ml-2 text-xs capitalize">{social.platform}</span>
+                        <span className="ml-2 text-xs">
+                          {getSocialPlatform(social.platform)?.label ?? social.platform}
+                        </span>
                       )}
                     </a>
                   ))}
                 </div>
               )}
             </section>
-
-            {links.length > 0 && (
-              <section
-                className={`profile-links ${spacing.section} ${profile.mode === "portfolio" ? "order-3" : "order-2"} space-y-3`}
-              >
-                {links.length > 1 && (
-                  <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
-                    Links
-                  </h2>
-                )}
-                {links.map((link, index) => (
-                  <a
-                    key={link.id}
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className={`profile-link profile-surface group flex items-center justify-between border px-4 py-3 text-left text-white/90 ${motion}`}
-                    style={{
-                      ...cardStyle,
-                      animationDelay: motionDisabled ? undefined : `${index * 90}ms`
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.045] text-white/65"
-                    >
-                      <ProfileIcon name={link.icon} />
-                    </span>
-                    <span>
-                      <span className="block font-semibold">{link.title}</span>
-                      {link.description && (
-                        <span className="mt-1 block text-sm text-white/40">
-                          {link.description}
-                        </span>
-                      )}
-                    </span>
-                    <ArrowUpRight
-                      size={18}
-                      className="shrink-0 text-white/35 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white"
-                    />
-                  </a>
-                ))}
-              </section>
-            )}
 
             {projects.length > 0 && (
               <section

@@ -31,18 +31,12 @@ export default async function DashboardPage() {
   const sinceDate = since.toISOString().slice(0, 10);
 
   const [
-    linksResult,
     socialsResult,
     projectsResult,
     mediaResult,
     badgesResult,
     viewsResult
   ] = await Promise.all([
-    supabase
-      .from("links")
-      .select("*")
-      .eq("profile_id", initialProfile.id)
-      .order("position"),
     supabase
       .from("social_links")
       .select("*")
@@ -73,7 +67,6 @@ export default async function DashboardPage() {
   ]);
 
   if (
-    linksResult.error ||
     socialsResult.error ||
     projectsResult.error ||
     mediaResult.error ||
@@ -81,7 +74,6 @@ export default async function DashboardPage() {
     viewsResult.error
   ) {
     const messages = [
-      linksResult.error?.message,
       socialsResult.error?.message,
       projectsResult.error?.message,
       mediaResult.error?.message,
@@ -95,7 +87,6 @@ export default async function DashboardPage() {
     <DashboardClient
       userEmail={user.email ?? ""}
       initialProfile={initialProfile}
-      initialLinks={linksResult.data ?? []}
       initialSocials={socialsResult.data ?? []}
       initialProjects={projectsResult.data ?? []}
       initialMedia={(mediaResult.data ?? []).map((media) => ({

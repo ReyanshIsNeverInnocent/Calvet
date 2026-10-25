@@ -17,7 +17,7 @@
 
 <h2 id="highlights">✨ Highlights</h2>
 
-- Put links, socials, projects, and a bit about you on one public page.
+- Put your socials, projects, and a bit about you on one public page.
 - Pick a layout, then tune the colors, type, backgrounds, cards, and motion.
 - Add up to three tracks, a media gallery, and your own profile imagery.
 - Set the scene with a custom visitor intro and optional visual effects.

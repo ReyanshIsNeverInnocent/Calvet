@@ -91,12 +91,3 @@ export const profileSchema = z.object({
     ])
   })
 });
-
-export const linkSchema = z.object({
-  title: z.string().trim().min(1).max(80),
-  url: urlSchema,
-  description: z.string().trim().max(140),
-  icon: z.string().trim().max(40),
-  position: z.number().int().nonnegative(),
-  enabled: z.boolean()
-});

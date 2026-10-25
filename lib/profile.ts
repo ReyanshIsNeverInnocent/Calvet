@@ -25,14 +25,8 @@ export async function getPublicProfile(
     return null;
   }
 
-  const [linksResult, socialsResult, projectsResult, mediaResult, badgesResult] =
+  const [socialsResult, projectsResult, mediaResult, badgesResult] =
     await Promise.all([
-      supabase
-        .from("links")
-        .select("*")
-        .eq("profile_id", profile.id)
-        .eq("enabled", true)
-        .order("position"),
       supabase
         .from("social_links")
         .select("*")
@@ -59,14 +53,12 @@ export async function getPublicProfile(
     ]);
 
   if (
-    linksResult.error ||
     socialsResult.error ||
     projectsResult.error ||
     mediaResult.error ||
     badgesResult.error
   ) {
     const messages = [
-      linksResult.error?.message,
       socialsResult.error?.message,
       projectsResult.error?.message,
       mediaResult.error?.message,
@@ -80,7 +72,6 @@ export async function getPublicProfile(
       ...profile,
       appearance: getAppearance(profile.appearance)
     },
-    links: linksResult.data ?? [],
     socials: socialsResult.data ?? [],
     projects: projectsResult.data ?? [],
     media: (mediaResult.data ?? []).map((media) => ({

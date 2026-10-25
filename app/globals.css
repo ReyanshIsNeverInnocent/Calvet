@@ -1727,24 +1727,6 @@ a {
   font-size: clamp(1.75rem, 4vw, 2.25rem);
 }
 
-.profile-panel[data-layout="social"] .profile-links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .75rem;
-}
-
-.profile-panel[data-layout="social"] .profile-links > * {
-  margin-top: 0;
-}
-
-.profile-panel[data-layout="social"] .profile-links > h2 {
-  grid-column: 1 / -1;
-}
-
-.profile-panel[data-layout="social"] .profile-link {
-  min-width: 0;
-}
-
 .profile-panel[data-layout="portfolio"] .profile-content {
   display: grid;
   grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
@@ -1756,7 +1738,6 @@ a {
   grid-column: 1 / -1;
 }
 
-.profile-panel[data-layout="portfolio"] .profile-links,
 .profile-panel[data-layout="portfolio"] .profile-projects {
   min-width: 0;
   margin-top: 0;
@@ -1787,10 +1768,6 @@ a {
 }
 
 @media (max-width: 639px) {
-  .profile-panel[data-layout="social"] .profile-links {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .profile-panel[data-layout="portfolio"] .profile-content {
     grid-template-columns: minmax(0, 1fr);
     gap: 1.75rem;
@@ -1823,7 +1800,6 @@ a {
   animation: reveal-up 750ms 100ms cubic-bezier(.2,.8,.2,1) both;
 }
 
-.profile-page-enter .profile-link,
 .profile-page-enter .project-card,
 .profile-page-enter .social-button {
   animation: card-reveal 650ms both cubic-bezier(.2,.8,.2,1);
@@ -1847,15 +1823,12 @@ a {
   transition: none !important;
 }
 
-.profile-motion-disabled .profile-link:hover,
 .profile-motion-disabled .project-card:hover,
 .profile-motion-disabled .social-button:hover {
   transform: none;
 }
 
-.profile-link:hover,
 .project-card:hover,
-.profile-page-enter .profile-link:hover,
 .profile-page-enter .project-card:hover,
 .profile-page-enter .social-button:hover {
   animation: none;
@@ -1874,7 +1847,6 @@ a {
   transform: translateY(-5px) rotate(-.3deg);
 }
 
-.profile-page-enter .profile-link.profile-card-float,
 .profile-page-enter .project-card.profile-card-float,
 .profile-page-enter .social-button.profile-card-float {
   animation:
@@ -1882,7 +1854,6 @@ a {
     profile-card-float 7s 650ms ease-in-out infinite;
 }
 
-.profile-page-enter .profile-link.profile-card-pulse,
 .profile-page-enter .project-card.profile-card-pulse,
 .profile-page-enter .social-button.profile-card-pulse {
   animation:
@@ -2050,6 +2021,22 @@ a {
 
 .dashboard-shell [class*="bg-violet"] {
   background-color: #8d71e7;
+}
+
+.dashboard-socials input:not([type="checkbox"]):not([type="radio"]) {
+  border: 0;
+  background: transparent;
+  color: #f4f1fa;
+  box-shadow: none;
+}
+
+.dashboard-socials input:not([type="checkbox"]):not([type="radio"]):focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.dashboard-socials input[type="radio"]:focus-visible + svg {
+  filter: drop-shadow(0 0 6px currentColor);
 }
 
 .not-found-page {

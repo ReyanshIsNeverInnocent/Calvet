@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type FormEvent
+  type CSSProperties
 } from "react";
 import {
   ArrowDown,
@@ -29,17 +29,22 @@ import {
 } from "lucide-react";
 import { read } from "jsmediatags/dist/jsmediatags.min.js";
 import { createClient } from "@/lib/supabase/browser";
-import { linkSchema, profileSchema, urlSchema } from "@/lib/validation";
+import { profileSchema, urlSchema } from "@/lib/validation";
 import { getAppearance } from "@/lib/appearance";
-import { linkIconOptions, suggestLink } from "@/lib/links";
+import {
+  buildSocialUrl,
+  getSocialPlatform,
+  getSocialUrlSuffix,
+  socialPlatformOptions
+} from "@/lib/socials";
 import ProfileRenderer from "@/components/ProfileRenderer";
+import SocialPlatformIcon from "@/components/SocialPlatformIcon";
 import ImageCropDialog from "@/components/ImageCropDialog";
 import UsernameEffect from "@/components/UsernameEffect";
 import { USERNAME_EFFECTS } from "@/types/profile";
 import type {
   Appearance,
   Profile,
-  ProfileLink,
   Project,
   ProfileBadge,
   ProfileMedia,
@@ -52,7 +57,6 @@ import SignOutButton from "@/components/SignOutButton";
 type Props = {
   userEmail: string;
   initialProfile: Profile;
-  initialLinks: ProfileLink[];
   initialSocials: SocialLink[];
   initialProjects: Project[];
   initialMedia: ProfileMedia[];
@@ -65,7 +69,7 @@ type EditorSection =
   | "profile"
   | "appearance"
   | "music"
-  | "links"
+  | "socials"
   | "media"
   | "analytics"
   | "settings";
@@ -178,7 +182,6 @@ type CropImageState =
 export default function DashboardClient({
   userEmail,
   initialProfile,
-  initialLinks,
   initialSocials,
   initialProjects,
   initialMedia,
@@ -191,7 +194,6 @@ export default function DashboardClient({
     ...initialProfile,
     appearance: getAppearance(initialProfile.appearance)
   });
-  const [links, setLinks] = useState(initialLinks);
   const [socials, setSocials] = useState(initialSocials);
   const [projects, setProjects] = useState(initialProjects);
   const [media, setMedia] = useState(initialMedia);
@@ -206,12 +208,24 @@ export default function DashboardClient({
   const profileSaveRevision = useRef(0);
   const profileSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const previousProfile = useRef(profile);
-  const [linkUrlInput, setLinkUrlInput] = useState("");
-  const [linkTitleInput, setLinkTitleInput] = useState("");
-  const [linkIconInput, setLinkIconInput] = useState("link");
-  const [addingLink, setAddingLink] = useState(false);
-  const [reorderingLinks, setReorderingLinks] = useState(false);
   const [reorderingSocials, setReorderingSocials] = useState(false);
+  const [selectedSocialPlatform, setSelectedSocialPlatform] = useState("github");
+  const [newSocialSuffix, setNewSocialSuffix] = useState("");
+  const [socialUrlDrafts, setSocialUrlDrafts] = useState<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        initialSocials.map((social) => [
+          social.id,
+          getSocialUrlSuffix(social.platform, social.url)
+        ])
+      )
+  );
+  const [projectTagDrafts, setProjectTagDrafts] = useState<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        initialProjects.map((project) => [project.id, project.tags.join(", ")])
+      )
+  );
 
   function updateProfile<K extends keyof Profile>(key: K, value: Profile[K]) {
     setProfile((current) => ({ ...current, [key]: value }));
@@ -431,54 +445,6 @@ export default function DashboardClient({
 
     return () => window.clearTimeout(timer);
   }, [profile, supabase]);
-
-  async function addLink(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setNotice("");
-
-    const suggestion = suggestLink(linkUrlInput);
-    if (!suggestion) {
-      setNotice("Enter a valid HTTP or HTTPS URL.");
-      return;
-    }
-
-    const linkValues = linkSchema.safeParse({
-      title: linkTitleInput || suggestion.title,
-      url: suggestion.url,
-      description: "",
-      icon: linkIconInput,
-      position: Math.max(-1, ...links.map((link) => link.position)) + 1,
-      enabled: true
-    });
-
-    if (!linkValues.success) {
-      setNotice(linkValues.error.issues[0]?.message ?? "Please check the link details.");
-      return;
-    }
-
-    setAddingLink(true);
-    const { data, error } = await supabase
-      .from("links")
-      .insert({
-        profile_id: profile.id,
-        ...linkValues.data
-      })
-      .select("*")
-      .single();
-
-    setAddingLink(false);
-
-    if (error) {
-      setNotice(error.message);
-      return;
-    }
-
-    setLinks((current) => [...current, data]);
-    setLinkUrlInput("");
-    setLinkTitleInput("");
-    setLinkIconInput("link");
-    setNotice("Link added.");
-  }
 
   async function uploadMusicFile(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -751,128 +717,23 @@ export default function DashboardClient({
     }
   }
 
-  async function updateLink(
-    id: string,
-    patch: Partial<
-      Pick<ProfileLink, "title" | "url" | "description" | "icon" | "enabled">
-    >
-  ) {
-    const existingLink = links.find((link) => link.id === id);
-    if (!existingLink) {
-      setNotice("This link is no longer available. Refresh and try again.");
-      return;
-    }
-
-    const parsedLink = linkSchema.safeParse({ ...existingLink, ...patch });
-    if (!parsedLink.success) {
-      setNotice(parsedLink.error.issues[0]?.message ?? "Please check the link details.");
-      return;
-    }
-
-    const normalizedPatch: Partial<
-      Pick<ProfileLink, "title" | "url" | "description" | "icon" | "enabled">
-    > = {};
-    if (patch.title !== undefined) normalizedPatch.title = parsedLink.data.title;
-    if (patch.url !== undefined) normalizedPatch.url = parsedLink.data.url;
-    if (patch.description !== undefined) {
-      normalizedPatch.description = parsedLink.data.description;
-    }
-    if (patch.icon !== undefined) normalizedPatch.icon = parsedLink.data.icon;
-    if (patch.enabled !== undefined) normalizedPatch.enabled = parsedLink.data.enabled;
-
-    const { error } = await supabase
-      .from("links")
-      .update(normalizedPatch)
-      .eq("id", id);
-
-    if (error) {
-      setNotice(error.message);
-      return;
-    }
-
-    setLinks((current) =>
-      current.map((link) =>
-        link.id === id ? { ...link, ...normalizedPatch } : link
-      )
-    );
-    setNotice("Link updated.");
-  }
-
-  async function moveLink(id: string, direction: -1 | 1) {
-    if (reorderingLinks) return;
-
-    const currentIndex = links.findIndex((link) => link.id === id);
-    const nextIndex = currentIndex + direction;
-    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= links.length) return;
-
-    const reordered = [...links];
-    const [movedLink] = reordered.splice(currentIndex, 1);
-    reordered.splice(nextIndex, 0, movedLink);
-    const positionedLinks = reordered.map((link, position) => ({
-      ...link,
-      position
-    }));
-
-    setLinks(positionedLinks);
-    setReorderingLinks(true);
-    setNotice("");
-
-    const results = await Promise.all(
-      positionedLinks.map((link) =>
-        supabase
-          .from("links")
-          .update({ position: link.position })
-          .eq("id", link.id)
-      )
-    );
-
-    const failedUpdate = results.find((result) => result.error !== null);
-
-    if (failedUpdate?.error) {
-      const { data: refreshedLinks, error: refreshError } = await supabase
-        .from("links")
-        .select("*")
-        .eq("profile_id", profile.id)
-        .order("position");
-
-      if (refreshError) {
-        setLinks(links);
-        setReorderingLinks(false);
-        setNotice(
-          `Could not save link order: ${failedUpdate.error.message}. Could not refresh the saved order: ${refreshError.message}`
-        );
-        return;
-      }
-
-      setLinks(refreshedLinks ?? []);
-      setReorderingLinks(false);
-      setNotice(`Could not save link order: ${failedUpdate.error.message}`);
-      return;
-    }
-
-    setReorderingLinks(false);
-    setNotice("Link order saved.");
-  }
-
-  async function removeLink(id: string) {
-    const { error } = await supabase.from("links").delete().eq("id", id);
-
-    if (error) {
-      setNotice(error.message);
-      return;
-    }
-
-    setLinks((current) => current.filter((link) => link.id !== id));
-    setNotice("Link removed.");
-  }
-
   async function addSocial() {
+    const url = buildSocialUrl(selectedSocialPlatform, newSocialSuffix);
+    if (!url) {
+      setNotice("Enter a username or profile URL for the selected platform.");
+      return;
+    }
+    if (!urlSchema.safeParse(url).success) {
+      setNotice("Enter a valid HTTP or HTTPS profile URL.");
+      return;
+    }
+
     const { data, error } = await supabase
       .from("social_links")
       .insert({
         profile_id: profile.id,
-        platform: "github",
-        url: "https://github.com",
+        platform: selectedSocialPlatform,
+        url,
         position: Math.max(-1, ...socials.map((social) => social.position)) + 1,
         enabled: true
       })
@@ -885,6 +746,11 @@ export default function DashboardClient({
     }
 
     setSocials((current) => [...current, data]);
+    setSocialUrlDrafts((current) => ({
+      ...current,
+      [data.id]: getSocialUrlSuffix(data.platform, data.url)
+    }));
+    setNewSocialSuffix("");
     setNotice("Social link added.");
   }
 
@@ -1193,7 +1059,6 @@ export default function DashboardClient({
       version: 1,
       exportedAt: new Date().toISOString(),
       profile,
-      links,
       socials,
       projects,
       media
@@ -1216,14 +1081,13 @@ export default function DashboardClient({
     { id: "profile", label: "Profile", icon: UserRound },
     { id: "appearance", label: "Appearance", icon: Palette },
     { id: "music", label: "Music", icon: Music2 },
-    { id: "links", label: "Links", icon: Link2 },
+    { id: "socials", label: "Socials & projects", icon: Link2 },
     { id: "media", label: "Media", icon: Images },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings }
   ];
 
   const profileUrl = `/@${encodeURIComponent(profile.username)}`;
-  const linkSuggestion = suggestLink(linkUrlInput);
   const manageableBadges = badges
     .filter((badge) => badge.kind !== "creator")
     .sort((left, right) => left.position - right.position);
@@ -1610,7 +1474,7 @@ export default function DashboardClient({
                       {([
                         ["minimal", "Minimal", "Compact intro and essentials"],
                         ["personal", "Personal", "Balanced profile with music"],
-                        ["social", "Social", "Social handles and quick links"],
+                        ["social", "Social", "Socials and compact profile details"],
                         ["portfolio", "Portfolio", "Wide projects-first layout"]
                       ] as const).map(([mode, title, description]) => (
                         <button
@@ -1641,454 +1505,454 @@ export default function DashboardClient({
                       </span>
                     </summary>
                     <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                  <details className="sm:col-span-2 rounded-2xl border border-black/10 bg-white/70 p-4">
-                    <summary className="cursor-pointer list-none text-sm font-semibold">
-                      Glass surface controls
-                      <span className="ml-2 text-xs font-normal text-black/45">
-                        Optional tint, blur, and border tuning
-                      </span>
-                    </summary>
-                    <fieldset className="mt-4 space-y-4">
-                    <legend className="px-1 text-sm font-semibold">
-                      Profile surfaces
-                    </legend>
-                    <p className="text-xs font-normal leading-5 text-black/50">
-                      Tune the profile box and its links, music player, socials, and projects together.
-                    </p>
-                    <div className="grid gap-4 sm:grid-cols-2">
+                      <details className="sm:col-span-2 rounded-2xl border border-black/10 bg-white/70 p-4">
+                        <summary className="cursor-pointer list-none text-sm font-semibold">
+                          Glass surface controls
+                          <span className="ml-2 text-xs font-normal text-black/45">
+                            Optional tint, blur, and border tuning
+                          </span>
+                        </summary>
+                        <fieldset className="mt-4 space-y-4">
+                          <legend className="px-1 text-sm font-semibold">
+                            Profile surfaces
+                          </legend>
+                          <p className="text-xs font-normal leading-5 text-black/50">
+                            Tune the profile box, music player, socials, and projects together.
+                          </p>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <label className="text-sm font-semibold">
+                              Surface style
+                              <select
+                                value={profile.appearance.surfaceStyle}
+                                onChange={(event) =>
+                                  updateAppearance(
+                                    "surfaceStyle",
+                                    event.target.value as Appearance["surfaceStyle"]
+                                  )
+                                }
+                                className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                              >
+                                <option value="glass">Glass</option>
+                                <option value="solid">Solid (no blur)</option>
+                                <option value="gradient">Gradient</option>
+                              </select>
+                            </label>
+                            <ColorField
+                              label="Surface tint"
+                              value={profile.appearance.surfaceColor}
+                              onChange={(value) => updateAppearance("surfaceColor", value)}
+                            />
+                            <ColorField
+                              label="Border color"
+                              value={profile.appearance.surfaceBorderColor}
+                              onChange={(value) =>
+                                updateAppearance("surfaceBorderColor", value)
+                              }
+                            />
+                            <label className="text-sm font-semibold">
+                              Surface opacity: {Math.round(profile.appearance.cardOpacity * 100)}%
+                              <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.02"
+                                value={profile.appearance.cardOpacity}
+                                onChange={(event) =>
+                                  updateAppearance("cardOpacity", Number(event.target.value))
+                                }
+                                className="mt-4 block w-full accent-violet"
+                              />
+                            </label>
+                            <label className="text-sm font-semibold">
+                              Glass blur: {profile.appearance.surfaceBlur}px
+                              <input
+                                type="range"
+                                min="0"
+                                max="40"
+                                step="1"
+                                value={profile.appearance.surfaceBlur}
+                                disabled={profile.appearance.surfaceStyle !== "glass"}
+                                onChange={(event) =>
+                                  updateAppearance("surfaceBlur", Number(event.target.value))
+                                }
+                                className="mt-4 block w-full accent-violet disabled:opacity-40"
+                              />
+                            </label>
+                            <label className="text-sm font-semibold">
+                              Border opacity: {Math.round(profile.appearance.surfaceBorderOpacity * 100)}%
+                              <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.02"
+                                value={profile.appearance.surfaceBorderOpacity}
+                                onChange={(event) =>
+                                  updateAppearance(
+                                    "surfaceBorderOpacity",
+                                    Number(event.target.value)
+                                  )
+                                }
+                                className="mt-4 block w-full accent-violet"
+                              />
+                            </label>
+                            <label className="text-sm font-semibold">
+                              Border thickness: {profile.appearance.surfaceBorderWidth}px
+                              <input
+                                type="range"
+                                min="0"
+                                max="4"
+                                step="0.5"
+                                value={profile.appearance.surfaceBorderWidth}
+                                onChange={(event) =>
+                                  updateAppearance(
+                                    "surfaceBorderWidth",
+                                    Number(event.target.value)
+                                  )
+                                }
+                                className="mt-4 block w-full accent-violet"
+                              />
+                            </label>
+                            <label className="text-sm font-semibold">
+                              Corner radius: {profile.appearance.surfaceRadius}px
+                              <input
+                                type="range"
+                                min="0"
+                                max="48"
+                                step="1"
+                                value={profile.appearance.surfaceRadius}
+                                onChange={(event) =>
+                                  updateAppearance(
+                                    "surfaceRadius",
+                                    Number(event.target.value)
+                                  )
+                                }
+                                className="mt-4 block w-full accent-violet"
+                              />
+                            </label>
+                            <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={profile.appearance.surfaceHighlight}
+                                onChange={(event) =>
+                                  updateAppearance("surfaceHighlight", event.target.checked)
+                                }
+                                className="h-4 w-4 accent-violet"
+                              />
+                              Top-edge glass highlight
+                            </label>
+                          </div>
+                        </fieldset>
+                      </details>
+
+                      <ColorField
+                        label="Accent"
+                        value={profile.appearance.accentColor}
+                        onChange={(value) => updateAppearance("accentColor", value)}
+                      />
+
+                      <ColorField
+                        label="Page background"
+                        value={profile.appearance.backgroundColor}
+                        onChange={(value) => updateAppearance("backgroundColor", value)}
+                      />
+
+                      <ColorField
+                        label="Text"
+                        value={profile.appearance.textColor}
+                        onChange={(value) => updateAppearance("textColor", value)}
+                      />
+
+                      <div className="text-sm font-semibold">
+                        Background image
+                        <span className="mt-2 flex items-center gap-3">
+                          <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium hover:border-violet">
+                            Upload background
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(event) =>
+                                uploadProfileImage(event, "backgroundImageUpload")
+                              }
+                              className="sr-only"
+                            />
+                          </label>
+                          {profile.appearance.backgroundImageUpload && (
+                            <button
+                              type="button"
+                              onClick={() => updateAppearance("backgroundImageUpload", "")}
+                              className="text-xs font-medium text-red-600 hover:underline"
+                            >
+                              Remove upload
+                            </button>
+                          )}
+                        </span>
+                      </div>
+
                       <label className="text-sm font-semibold">
-                        Surface style
+                        Avatar and status shape
                         <select
-                          value={profile.appearance.surfaceStyle}
+                          value={profile.appearance.radius}
                           onChange={(event) =>
                             updateAppearance(
-                              "surfaceStyle",
-                              event.target.value as Appearance["surfaceStyle"]
+                              "radius",
+                              event.target.value as Appearance["radius"]
                             )
                           }
                           className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
                         >
-                          <option value="glass">Glass</option>
-                          <option value="solid">Solid (no blur)</option>
-                          <option value="gradient">Gradient</option>
+                          <option value="small">Soft corners</option>
+                          <option value="medium">Rounded</option>
+                          <option value="large">Extra rounded</option>
                         </select>
                       </label>
-                      <ColorField
-                        label="Surface tint"
-                        value={profile.appearance.surfaceColor}
-                        onChange={(value) => updateAppearance("surfaceColor", value)}
-                      />
-                      <ColorField
-                        label="Border color"
-                        value={profile.appearance.surfaceBorderColor}
-                        onChange={(value) =>
-                          updateAppearance("surfaceBorderColor", value)
-                        }
-                      />
+
                       <label className="text-sm font-semibold">
-                        Surface opacity: {Math.round(profile.appearance.cardOpacity * 100)}%
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.02"
-                          value={profile.appearance.cardOpacity}
-                          onChange={(event) =>
-                            updateAppearance("cardOpacity", Number(event.target.value))
-                          }
-                          className="mt-4 block w-full accent-violet"
-                        />
-                      </label>
-                      <label className="text-sm font-semibold">
-                        Glass blur: {profile.appearance.surfaceBlur}px
-                        <input
-                          type="range"
-                          min="0"
-                          max="40"
-                          step="1"
-                          value={profile.appearance.surfaceBlur}
-                          disabled={profile.appearance.surfaceStyle !== "glass"}
-                          onChange={(event) =>
-                            updateAppearance("surfaceBlur", Number(event.target.value))
-                          }
-                          className="mt-4 block w-full accent-violet disabled:opacity-40"
-                        />
-                      </label>
-                      <label className="text-sm font-semibold">
-                        Border opacity: {Math.round(profile.appearance.surfaceBorderOpacity * 100)}%
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.02"
-                          value={profile.appearance.surfaceBorderOpacity}
+                        Typography
+                        <select
+                          value={profile.appearance.font}
                           onChange={(event) =>
                             updateAppearance(
-                              "surfaceBorderOpacity",
-                              Number(event.target.value)
+                              "font",
+                              event.target.value as Appearance["font"]
                             )
                           }
-                          className="mt-4 block w-full accent-violet"
-                        />
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="inter">Inter</option>
+                          <option value="system">System</option>
+                          <option value="serif">Serif</option>
+                        </select>
                       </label>
+
                       <label className="text-sm font-semibold">
-                        Border thickness: {profile.appearance.surfaceBorderWidth}px
-                        <input
-                          type="range"
-                          min="0"
-                          max="4"
-                          step="0.5"
-                          value={profile.appearance.surfaceBorderWidth}
+                        Spacing
+                        <select
+                          value={profile.appearance.spacing}
                           onChange={(event) =>
                             updateAppearance(
-                              "surfaceBorderWidth",
-                              Number(event.target.value)
+                              "spacing",
+                              event.target.value as Appearance["spacing"]
                             )
                           }
-                          className="mt-4 block w-full accent-violet"
-                        />
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="compact">Compact</option>
+                          <option value="comfortable">Comfortable</option>
+                          <option value="airy">Airy</option>
+                        </select>
                       </label>
+
                       <label className="text-sm font-semibold">
-                        Corner radius: {profile.appearance.surfaceRadius}px
-                        <input
-                          type="range"
-                          min="0"
-                          max="48"
-                          step="1"
-                          value={profile.appearance.surfaceRadius}
+                        Animation
+                        <select
+                          value={profile.appearance.animation}
                           onChange={(event) =>
                             updateAppearance(
-                              "surfaceRadius",
-                              Number(event.target.value)
+                              "animation",
+                              event.target.value as Appearance["animation"]
                             )
                           }
-                          className="mt-4 block w-full accent-violet"
-                        />
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="none">None</option>
+                          <option value="subtle">Subtle</option>
+                          <option value="playful">Playful</option>
+                          <option value="float">Floating</option>
+                          <option value="pulse">Soft pulse</option>
+                        </select>
                       </label>
+
+                      <label className="text-sm font-semibold">
+                        Background effect
+                        <select
+                          value={profile.appearance.backgroundEffect}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "backgroundEffect",
+                              event.target.value as Appearance["backgroundEffect"]
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="none">None</option>
+                          <option value="aurora">Aurora glow</option>
+                          <option value="grid">Soft grid</option>
+                        </select>
+                      </label>
+
+                      <label className="text-sm font-semibold">
+                        Profile card effect
+                        <select
+                          value={profile.appearance.cardEffect}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "cardEffect",
+                              event.target.value as Appearance["cardEffect"]
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="none">None</option>
+                          <option value="glow">Accent glow</option>
+                          <option value="gradient">Color wash</option>
+                        </select>
+                      </label>
+
+                      <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
+                        <summary className="cursor-pointer list-none text-sm font-semibold">
+                          Click-to-enter screen
+                          <span className="ml-2 text-xs font-normal text-black/45">
+                            Text, blur, and entrance effect
+                          </span>
+                        </summary>
+                        <fieldset className="mt-4">
+                          <legend className="px-1 text-sm font-semibold">
+                            Visitor entrance settings
+                          </legend>
+                          <p className="mt-1 text-xs font-normal leading-5 text-black/50">
+                            Visitors click this screen to open your page. Their click can start your song too.
+                          </p>
+                          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                            <label className="text-sm font-semibold">
+                              Enter text
+                              <input
+                                value={profile.appearance.enterText ?? ""}
+                                maxLength={60}
+                                onChange={(event) =>
+                                  updateAppearance("enterText", event.target.value)
+                                }
+                                placeholder="click to enter"
+                                className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3 outline-none focus:border-violet"
+                              />
+                            </label>
+                            <label className="text-sm font-semibold">
+                              Background blur: {profile.appearance.enterBlur}px
+                              <input
+                                type="range"
+                                min="0"
+                                max="20"
+                                step="0.5"
+                                value={profile.appearance.enterBlur}
+                                onChange={(event) =>
+                                  updateAppearance("enterBlur", Number(event.target.value))
+                                }
+                                className="mt-3 w-full accent-violet-600"
+                              />
+                              <span className="mt-1 flex justify-between text-xs font-normal text-black/45">
+                                <span>Off</span>
+                                <span>Strong</span>
+                              </span>
+                            </label>
+                            <label className="text-sm font-semibold">
+                              Entrance effect
+                              <select
+                                value={profile.appearance.enterEffect}
+                                onChange={(event) =>
+                                  updateAppearance(
+                                    "enterEffect",
+                                    event.target.value as Appearance["enterEffect"]
+                                  )
+                                }
+                                className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                              >
+                                <option value="none">Clean fade</option>
+                                <option value="spotlight">Soft spotlight</option>
+                                <option value="glitch">Glitch flash</option>
+                                <option value="sparkles">Floating sparkles</option>
+                                <option value="aurora">Drifting aurora</option>
+                                <option value="snow">Slow snowfall</option>
+                                <option value="rain">Night rain</option>
+                              </select>
+                            </label>
+                          </div>
+                        </fieldset>
+                      </details>
+
+                      <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
+                        <summary className="cursor-pointer list-none text-sm font-semibold">
+                          Username effects
+                          <span className="ml-2 text-xs font-normal text-black/45">
+                            Animate or style your display name
+                          </span>
+                        </summary>
+                        <fieldset className="mt-4">
+                          <legend className="text-sm font-semibold">
+                            Pick an effect
+                          </legend>
+                          <p className="mt-1 text-xs font-normal text-black/45">
+                            Choose a free built-in style for your display name.
+                          </p>
+                          <div
+                            role="group"
+                            aria-label="Username effects"
+                            className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-6"
+                          >
+                            {usernameEffectOptions.map((option) => {
+                              const selected =
+                                profile.appearance.usernameEffect === option.value;
+
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  aria-pressed={selected}
+                                  onClick={() =>
+                                    updateAppearance("usernameEffect", option.value)
+                                  }
+                                  className={`username-effect-option flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-center transition ${
+                                    selected
+                                      ? "border-[#7965db] bg-[#7965db]/10 ring-1 ring-[#7965db]/25"
+                                      : "border-black/10 bg-white hover:border-black/25"
+                                  }`}
+                                >
+                                  <span aria-hidden="true">
+                                    <UsernameEffect
+                                      text={option.sample}
+                                      effect={option.value}
+                                      reducedMotion={
+                                        profile.appearance.reducedMotion ||
+                                        profile.appearance.animation === "none"
+                                      }
+                                      accentColor={profile.appearance.accentColor}
+                                      preview
+                                    />
+                                  </span>
+                                  <span className="text-xs font-medium">{option.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </fieldset>
+                      </details>
+
+                      <p className="text-xs font-normal leading-5 text-black/45 sm:col-span-2">
+                        Effects are built in and free. Reduce motion disables
+                        animation while leaving static styles available.
+                      </p>
+
                       <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
                         <input
                           type="checkbox"
-                          checked={profile.appearance.surfaceHighlight}
+                          checked={profile.appearance.shadow}
                           onChange={(event) =>
-                            updateAppearance("surfaceHighlight", event.target.checked)
+                            updateAppearance("shadow", event.target.checked)
                           }
                           className="h-4 w-4 accent-violet"
                         />
-                        Top-edge glass highlight
+                        Soft card shadows
                       </label>
-                    </div>
-                    </fieldset>
-                  </details>
 
-                  <ColorField
-                    label="Accent"
-                    value={profile.appearance.accentColor}
-                    onChange={(value) => updateAppearance("accentColor", value)}
-                  />
-
-                  <ColorField
-                    label="Page background"
-                    value={profile.appearance.backgroundColor}
-                    onChange={(value) => updateAppearance("backgroundColor", value)}
-                  />
-
-                  <ColorField
-                    label="Text"
-                    value={profile.appearance.textColor}
-                    onChange={(value) => updateAppearance("textColor", value)}
-                  />
-
-                  <div className="text-sm font-semibold">
-                    Background image
-                    <span className="mt-2 flex items-center gap-3">
-                      <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium hover:border-violet">
-                        Upload background
+                      <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
                         <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
+                          type="checkbox"
+                          checked={profile.appearance.reducedMotion}
                           onChange={(event) =>
-                            uploadProfileImage(event, "backgroundImageUpload")
+                            updateAppearance("reducedMotion", event.target.checked)
                           }
-                          className="sr-only"
+                          className="h-4 w-4 accent-violet"
                         />
+                        Reduce motion
                       </label>
-                      {profile.appearance.backgroundImageUpload && (
-                        <button
-                          type="button"
-                          onClick={() => updateAppearance("backgroundImageUpload", "")}
-                          className="text-xs font-medium text-red-600 hover:underline"
-                        >
-                          Remove upload
-                        </button>
-                      )}
-                    </span>
-                  </div>
-
-                  <label className="text-sm font-semibold">
-                    Avatar and status shape
-                    <select
-                      value={profile.appearance.radius}
-                      onChange={(event) =>
-                        updateAppearance(
-                          "radius",
-                          event.target.value as Appearance["radius"]
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                    >
-                      <option value="small">Soft corners</option>
-                      <option value="medium">Rounded</option>
-                      <option value="large">Extra rounded</option>
-                    </select>
-                  </label>
-
-                  <label className="text-sm font-semibold">
-                    Typography
-                    <select
-                      value={profile.appearance.font}
-                      onChange={(event) =>
-                        updateAppearance(
-                          "font",
-                          event.target.value as Appearance["font"]
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                    >
-                      <option value="inter">Inter</option>
-                      <option value="system">System</option>
-                      <option value="serif">Serif</option>
-                    </select>
-                  </label>
-
-                  <label className="text-sm font-semibold">
-                    Spacing
-                    <select
-                      value={profile.appearance.spacing}
-                      onChange={(event) =>
-                        updateAppearance(
-                          "spacing",
-                          event.target.value as Appearance["spacing"]
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                    >
-                      <option value="compact">Compact</option>
-                      <option value="comfortable">Comfortable</option>
-                      <option value="airy">Airy</option>
-                    </select>
-                  </label>
-
-                  <label className="text-sm font-semibold">
-                    Animation
-                    <select
-                      value={profile.appearance.animation}
-                      onChange={(event) =>
-                        updateAppearance(
-                          "animation",
-                          event.target.value as Appearance["animation"]
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                    >
-                      <option value="none">None</option>
-                      <option value="subtle">Subtle</option>
-                      <option value="playful">Playful</option>
-                      <option value="float">Floating</option>
-                      <option value="pulse">Soft pulse</option>
-                    </select>
-                  </label>
-
-                  <label className="text-sm font-semibold">
-                    Background effect
-                    <select
-                      value={profile.appearance.backgroundEffect}
-                      onChange={(event) =>
-                        updateAppearance(
-                          "backgroundEffect",
-                          event.target.value as Appearance["backgroundEffect"]
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                    >
-                      <option value="none">None</option>
-                      <option value="aurora">Aurora glow</option>
-                      <option value="grid">Soft grid</option>
-                    </select>
-                  </label>
-
-                  <label className="text-sm font-semibold">
-                    Profile card effect
-                    <select
-                      value={profile.appearance.cardEffect}
-                      onChange={(event) =>
-                        updateAppearance(
-                          "cardEffect",
-                          event.target.value as Appearance["cardEffect"]
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                    >
-                      <option value="none">None</option>
-                      <option value="glow">Accent glow</option>
-                      <option value="gradient">Color wash</option>
-                    </select>
-                  </label>
-
-                  <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
-                    <summary className="cursor-pointer list-none text-sm font-semibold">
-                      Click-to-enter screen
-                      <span className="ml-2 text-xs font-normal text-black/45">
-                        Text, blur, and entrance effect
-                      </span>
-                    </summary>
-                    <fieldset className="mt-4">
-                    <legend className="px-1 text-sm font-semibold">
-                      Visitor entrance settings
-                    </legend>
-                    <p className="mt-1 text-xs font-normal leading-5 text-black/50">
-                      Visitors click this screen to open your page. Their click can start your song too.
-                    </p>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <label className="text-sm font-semibold">
-                        Enter text
-                        <input
-                          value={profile.appearance.enterText ?? ""}
-                          maxLength={60}
-                          onChange={(event) =>
-                            updateAppearance("enterText", event.target.value)
-                          }
-                          placeholder="click to enter"
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3 outline-none focus:border-violet"
-                        />
-                      </label>
-                      <label className="text-sm font-semibold">
-                        Background blur: {profile.appearance.enterBlur}px
-                        <input
-                          type="range"
-                          min="0"
-                          max="20"
-                          step="0.5"
-                          value={profile.appearance.enterBlur}
-                          onChange={(event) =>
-                            updateAppearance("enterBlur", Number(event.target.value))
-                          }
-                          className="mt-3 w-full accent-violet-600"
-                        />
-                        <span className="mt-1 flex justify-between text-xs font-normal text-black/45">
-                          <span>Off</span>
-                          <span>Strong</span>
-                        </span>
-                      </label>
-                      <label className="text-sm font-semibold">
-                        Entrance effect
-                        <select
-                          value={profile.appearance.enterEffect}
-                          onChange={(event) =>
-                            updateAppearance(
-                              "enterEffect",
-                              event.target.value as Appearance["enterEffect"]
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                        >
-                          <option value="none">Clean fade</option>
-                          <option value="spotlight">Soft spotlight</option>
-                          <option value="glitch">Glitch flash</option>
-                          <option value="sparkles">Floating sparkles</option>
-                          <option value="aurora">Drifting aurora</option>
-                          <option value="snow">Slow snowfall</option>
-                          <option value="rain">Night rain</option>
-                        </select>
-                      </label>
-                    </div>
-                    </fieldset>
-                  </details>
-
-                  <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
-                    <summary className="cursor-pointer list-none text-sm font-semibold">
-                      Username effects
-                      <span className="ml-2 text-xs font-normal text-black/45">
-                        Animate or style your display name
-                      </span>
-                    </summary>
-                    <fieldset className="mt-4">
-                    <legend className="text-sm font-semibold">
-                      Pick an effect
-                    </legend>
-                    <p className="mt-1 text-xs font-normal text-black/45">
-                      Choose a free built-in style for your display name.
-                    </p>
-                    <div
-                      role="group"
-                      aria-label="Username effects"
-                      className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-6"
-                    >
-                      {usernameEffectOptions.map((option) => {
-                        const selected =
-                          profile.appearance.usernameEffect === option.value;
-
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() =>
-                              updateAppearance("usernameEffect", option.value)
-                            }
-                            className={`username-effect-option flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-center transition ${
-                              selected
-                                ? "border-[#7965db] bg-[#7965db]/10 ring-1 ring-[#7965db]/25"
-                                : "border-black/10 bg-white hover:border-black/25"
-                            }`}
-                          >
-                            <span aria-hidden="true">
-                              <UsernameEffect
-                                text={option.sample}
-                                effect={option.value}
-                                reducedMotion={
-                                  profile.appearance.reducedMotion ||
-                                  profile.appearance.animation === "none"
-                                }
-                                accentColor={profile.appearance.accentColor}
-                                preview
-                              />
-                            </span>
-                            <span className="text-xs font-medium">{option.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    </fieldset>
-                  </details>
-
-                  <p className="text-xs font-normal leading-5 text-black/45 sm:col-span-2">
-                    Effects are built in and free. Reduce motion disables
-                    animation while leaving static styles available.
-                  </p>
-
-                  <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={profile.appearance.shadow}
-                      onChange={(event) =>
-                        updateAppearance("shadow", event.target.checked)
-                      }
-                      className="h-4 w-4 accent-violet"
-                    />
-                    Soft card shadows
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={profile.appearance.reducedMotion}
-                      onChange={(event) =>
-                        updateAppearance("reducedMotion", event.target.checked)
-                      }
-                      className="h-4 w-4 accent-violet"
-                    />
-                    Reduce motion
-                  </label>
                     </div>
                   </details>
                 </div>
@@ -2294,328 +2158,225 @@ export default function DashboardClient({
             </div>
           )}
 
-          {active === "links" && (
+          {active === "socials" && (
             <div className="space-y-6">
-              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-bold">Your links</h2>
-                  <p className="mt-1 text-sm text-black/50">
-                    Add useful destinations and keep them in your own order.
-                  </p>
-                </div>
-                <button
-                  type="submit"
-                  form="quick-add-link"
-                  disabled={addingLink}
-                  className="inline-flex items-center gap-2 rounded-xl bg-violet px-4 py-3 text-sm font-semibold text-white hover:bg-[#6948ef] disabled:cursor-wait disabled:opacity-60"
-                >
-                  <Plus size={16} />
-                  {addingLink ? "Adding…" : "Add link"}
-                </button>
-              </div>
-
-              <form
-                id="quick-add-link"
-                onSubmit={addLink}
-                className="mt-5 grid gap-3 rounded-xl border border-dashed border-black/15 bg-black/[0.02] p-4 sm:grid-cols-2"
-              >
-                <label className="text-xs font-semibold text-black/55 sm:col-span-2">
-                  PASTE A LINK
-                  <input
-                    type="text"
-                    inputMode="url"
-                    autoComplete="url"
-                    value={linkUrlInput}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      const suggestion = suggestLink(value);
-                      setLinkUrlInput(value);
-                      if (suggestion) {
-                        setLinkTitleInput(suggestion.title);
-                        setLinkIconInput(suggestion.icon);
-                      }
-                    }}
-                    placeholder="example.com or https://example.com"
-                    aria-describedby="quick-add-link-help"
-                    className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-3 text-sm text-black"
-                  />
-                  <span
-                    id="quick-add-link-help"
-                    className="mt-1 block font-normal text-black/45"
-                  >
-                    Suggestions are generated locally; no external lookup is used.
-                  </span>
-                </label>
-
-                {linkSuggestion && (
-                  <>
-                    <label className="text-xs font-semibold text-black/55">
-                      DISPLAY TITLE
-                      <input
-                        value={linkTitleInput}
-                        maxLength={80}
-                        onChange={(event) => setLinkTitleInput(event.target.value)}
-                        className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-black"
-                      />
-                    </label>
-                    <label className="text-xs font-semibold text-black/55">
-                      ICON
-                      <select
-                        value={linkIconInput}
-                        onChange={(event) => setLinkIconInput(event.target.value)}
-                        className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-black"
-                      >
-                        {linkIconOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <p className="text-xs text-black/45 sm:col-span-2">
-                      Suggested for {linkSuggestion.url}
+              <section className="dashboard-socials overflow-hidden rounded-[1.8rem] border border-white/10 bg-[#111017] shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-5 sm:px-7">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Social profiles</h2>
+                    <p className="mt-1 text-sm text-white/45">
+                      Pick an icon, add your handle, and you’re set.
                     </p>
-                  </>
-                )}
-              </form>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/45">
+                    {socials.length} added
+                  </span>
+                </div>
 
-              <div className="mt-6 space-y-3">
-              {links.map((link, index) => (
-                <div
-                  key={link.id}
-                  className="grid gap-3 rounded-xl border border-black/10 p-4 md:grid-cols-[1fr_1.4fr_130px_auto_auto_auto]"
-                >
-                    <label className="text-xs font-semibold text-black/45">
-                      TITLE
-                      <input
-                        value={link.title}
-                        maxLength={80}
-                        onChange={(event) =>
-                          setLinks((current) =>
-                            current.map((item) =>
-                              item.id === link.id
-                                ? { ...item, title: event.target.value }
-                                : item
-                            )
-                          )
-                        }
-                        onBlur={() => updateLink(link.id, { title: link.title })}
-                        className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-black"
-                      />
-                    </label>
-
-                    <label className="text-xs font-semibold text-black/45">
-                      URL
-                      <input
-                        value={link.url}
-                        type="url"
-                        onChange={(event) =>
-                          setLinks((current) =>
-                            current.map((item) =>
-                              item.id === link.id
-                                ? { ...item, url: event.target.value }
-                                : item
-                            )
-                          )
-                        }
-                        onBlur={() => updateLink(link.id, { url: link.url })}
-                        className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-black"
-                      />
-                    </label>
-
-                    <label className="text-xs font-semibold text-black/45">
-                      ICON
-                      <select
-                        value={
-                          linkIconOptions.some((option) => option.value === link.icon)
-                            ? link.icon
-                            : "link"
-                        }
-                        onChange={(event) =>
-                          setLinks((current) =>
-                            current.map((item) =>
-                              item.id === link.id
-                                ? { ...item, icon: event.target.value }
-                                : item
-                            )
-                          )
-                        }
-                        onBlur={() => updateLink(link.id, { icon: link.icon })}
-                        className="mt-1 w-full rounded-lg border border-black/10 bg-white px-2 py-2 text-sm text-black"
-                      >
-                        {linkIconOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium text-black/65">
-                      <input
-                        type="checkbox"
-                        checked={link.enabled}
-                        onChange={(event) =>
-                          updateLink(link.id, { enabled: event.target.checked })
-                        }
-                        className="accent-violet"
-                      />
-                      Visible
-                    </label>
-
-                    <div className="flex items-center gap-1 self-end">
-                      <button
-                        type="button"
-                        onClick={() => void moveLink(link.id, -1)}
-                        disabled={index === 0 || reorderingLinks}
-                        aria-label={`Move ${link.title} up`}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg text-black/55 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <ArrowUp size={17} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void moveLink(link.id, 1)}
-                        disabled={index === links.length - 1 || reorderingLinks}
-                        aria-label={`Move ${link.title} down`}
-                        className="flex h-10 w-10 items-center justify-center rounded-lg text-black/55 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <ArrowDown size={17} />
-                      </button>
+                <div className="grid gap-5 p-5 sm:p-7">
+                  <fieldset>
+                    <legend className="mb-3 text-[10px] font-bold uppercase tracking-[.18em] text-white/40">
+                      Choose a platform
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {socialPlatformOptions.map((platform) => (
+                        <label
+                          key={platform.value}
+                          title={platform.label}
+                          className={`group relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border transition duration-150 ${
+                            selectedSocialPlatform === platform.value
+                              ? "border-[var(--social-color)] bg-[color-mix(in_srgb,var(--social-color)_14%,#15131c)] shadow-[0_0_18px_color-mix(in_srgb,var(--social-color)_18%,transparent)]"
+                              : "border-white/[0.08] bg-white/[0.025] hover:border-white/20 hover:bg-white/[0.06]"
+                          }`}
+                          style={{ "--social-color": platform.color } as CSSProperties}
+                        >
+                          <input
+                            type="radio"
+                            name="new-social-platform"
+                            value={platform.value}
+                            checked={selectedSocialPlatform === platform.value}
+                            onChange={() => {
+                              setSelectedSocialPlatform(platform.value);
+                              setNewSocialSuffix("");
+                            }}
+                            className="peer sr-only"
+                          />
+                          <SocialPlatformIcon platform={platform.value} size={19} />
+                          <span className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 -translate-x-1/2 translate-y-1 rounded-md border border-white/10 bg-[#211e29] px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-xl transition group-hover:translate-y-0 group-hover:opacity-100 peer-focus-visible:opacity-100">
+                            {platform.label}
+                          </span>
+                        </label>
+                      ))}
                     </div>
+                  </fieldset>
 
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <label className="block min-w-0 text-[10px] font-bold uppercase tracking-[.16em] text-white/40">
+                      {getSocialPlatform(selectedSocialPlatform)?.label} profile
+                      <span className="mt-2 flex min-w-0 items-center overflow-hidden rounded-xl border border-white/10 bg-black/30 transition focus-within:border-white/25 focus-within:ring-2 focus-within:ring-white/[0.04]">
+                        <span
+                          title={getSocialPlatform(selectedSocialPlatform)?.baseUrl}
+                          className="max-w-[60%] shrink-0 truncate border-r border-white/[0.07] px-3 py-3 font-mono text-xs font-normal normal-case tracking-normal text-white/35"
+                        >
+                          {getSocialPlatform(selectedSocialPlatform)?.baseUrl
+                            .replace(/^https?:\/\//, "")
+                            .replace(/\/$/, "")}
+                          /
+                        </span>
+                        <input
+                          value={newSocialSuffix}
+                          onChange={(event) => setNewSocialSuffix(event.target.value)}
+                          onPaste={(event) => {
+                            const pasted = event.clipboardData.getData("text");
+                            const suffix = getSocialUrlSuffix(
+                              selectedSocialPlatform,
+                              pasted
+                            );
+                            if (suffix !== pasted.trim()) {
+                              event.preventDefault();
+                              setNewSocialSuffix(suffix);
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && newSocialSuffix.trim()) {
+                              event.preventDefault();
+                              void addSocial();
+                            }
+                          }}
+                          placeholder="username or paste full link"
+                          aria-label={`${getSocialPlatform(selectedSocialPlatform)?.label} username or profile URL`}
+                          className="min-w-0 flex-1 bg-transparent px-3 py-3 font-mono text-sm font-normal normal-case tracking-normal text-white outline-none placeholder:text-white/25"
+                        />
+                      </span>
+                    </label>
                     <button
                       type="button"
-                      onClick={() => removeLink(link.id)}
-                      aria-label={`Remove ${link.title}`}
-                      className="flex h-10 w-10 items-center justify-center self-end rounded-lg text-black/40 hover:bg-red-50 hover:text-red-600"
+                      onClick={addSocial}
+                      disabled={!newSocialSuffix.trim()}
+                      className="inline-flex h-[46px] items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-[#17151d] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-35"
                     >
-                      <Trash2 size={17} />
+                      <Plus size={16} />
+                      Add profile
                     </button>
-
-                    <label className="text-xs font-semibold text-black/45 md:col-span-5">
-                      DESCRIPTION
-                      <input
-                        value={link.description}
-                        onChange={(event) =>
-                          setLinks((current) =>
-                            current.map((item) =>
-                              item.id === link.id
-                                ? { ...item, description: event.target.value }
-                                : item
-                            )
-                          )
-                        }
-                        onBlur={() =>
-                          updateLink(link.id, { description: link.description })
-                        }
-                        className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-black"
-                      />
-                    </label>
                   </div>
-                ))}
 
-                {links.length === 0 && (
-                  <p className="rounded-xl bg-black/[0.03] p-6 text-center text-sm text-black/50">
-                    No links yet. Add one to give visitors somewhere to go.
-                  </p>
-                )}
-              </div>
+                  <div className="h-px bg-white/[0.07]" />
 
-              <div className="mt-10 border-t border-black/10 pt-8">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold">Social profiles</h2>
-                    <p className="mt-1 text-sm text-black/50">
-                      Add social accounts to the icons on your public page.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={addSocial}
-                    className="inline-flex items-center gap-2 rounded-xl border border-black/10 px-4 py-3 text-sm font-semibold hover:bg-black/5"
-                  >
-                    <Plus size={16} />
-                    Add social
-                  </button>
-                </div>
+                  {socials.length > 0 ? (
+                    <div className="grid gap-2.5">
+                    {socials.map((social, index) => {
+                      const platformOption = getSocialPlatform(social.platform);
+                      const socialSuffix =
+                        socialUrlDrafts[social.id] ??
+                        getSocialUrlSuffix(social.platform, social.url);
+                      return (
+                        <div
+                          key={social.id}
+                          className="grid gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-white/[0.14] hover:bg-white/[0.04] sm:grid-cols-[minmax(9rem,.72fr)_minmax(0,1.6fr)_auto_auto_auto] sm:items-center sm:p-3.5"
+                        >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-black/20"
+                          style={{ color: platformOption?.color ?? "#aaa5b5" }}
+                        >
+                          <SocialPlatformIcon platform={social.platform} size={20} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">
+                            {platformOption?.label ?? social.platform}
+                          </p>
+                          <p className="mt-0.5 truncate text-[10px] text-white/35">
+                            {platformOption?.baseUrl.replace(/^https?:\/\//, "") ?? "Custom profile"}
+                          </p>
+                        </div>
+                      </div>
 
-                <div className="mt-5 space-y-3">
-                  {socials.map((social, index) => (
-                    <div
-                      key={social.id}
-                      className="grid gap-3 rounded-xl border border-black/10 p-4 sm:grid-cols-[1fr_2fr_auto_auto_auto]"
-                    >
-                      <label className="text-xs font-semibold text-black/45">
-                        PLATFORM
-                        <input
-                          value={social.platform}
-                          maxLength={40}
-                          list={`social-platforms-${social.id}`}
-                          onChange={(event) =>
-                            setSocials((current) =>
-                              current.map((item) =>
-                                item.id === social.id
-                                  ? { ...item, platform: event.target.value }
-                                  : item
-                              )
-                            )
-                          }
-                          onBlur={() =>
-                            updateSocial(social.id, { platform: social.platform })
-                          }
-                          className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-black"
-                        />
-                        <datalist id={`social-platforms-${social.id}`}>
-                          <option value="github" />
-                          <option value="instagram" />
-                          <option value="youtube" />
-                          <option value="twitch" />
-                          <option value="spotify" />
-                          <option value="linkedin" />
-                          <option value="x" />
-                          <option value="twitter" />
-                        </datalist>
+                      <label className="block min-w-0">
+                        <span className="flex min-w-0 items-center overflow-hidden rounded-xl border border-white/[0.08] bg-black/25 transition focus-within:border-white/20">
+                          {platformOption && (
+                            <span
+                              title={platformOption.baseUrl}
+                              className="max-w-[54%] shrink-0 truncate border-r border-white/[0.07] px-3 py-2.5 font-mono text-[11px] text-white/35"
+                            >
+                              {platformOption.baseUrl.replace(/^https?:\/\//, "")}
+                            </span>
+                          )}
+                          <input
+                            value={socialSuffix}
+                            placeholder={platformOption ? "username or profile URL" : "https://example.com"}
+                            onChange={(event) =>
+                              setSocialUrlDrafts((current) => ({
+                                ...current,
+                                [social.id]: event.target.value
+                              }))
+                            }
+                            onPaste={(event) => {
+                              if (!platformOption) return;
+                              const pasted = event.clipboardData.getData("text");
+                              const suffix = getSocialUrlSuffix(
+                                social.platform,
+                                pasted
+                              );
+                              if (suffix !== pasted.trim()) {
+                                event.preventDefault();
+                                setSocialUrlDrafts((current) => ({
+                                  ...current,
+                                  [social.id]: suffix
+                                }));
+                              }
+                            }}
+                            onBlur={() => {
+                              const nextUrl = platformOption
+                                ? buildSocialUrl(social.platform, socialSuffix)
+                                : socialSuffix.trim();
+                              if (!nextUrl) {
+                                setNotice(
+                                  "Enter a username/path or a full profile URL for this platform."
+                                );
+                                return;
+                              }
+                              if (!urlSchema.safeParse(nextUrl).success) {
+                                setNotice("Enter a valid HTTP or HTTPS profile URL.");
+                                return;
+                              }
+                              setSocialUrlDrafts((current) => ({
+                                ...current,
+                                [social.id]: platformOption
+                                  ? getSocialUrlSuffix(social.platform, nextUrl)
+                                  : nextUrl
+                              }));
+                              void updateSocial(social.id, { url: nextUrl });
+                            }}
+                            className="min-w-0 flex-1 bg-transparent px-3 py-3 font-mono text-xs font-normal normal-case tracking-normal text-white outline-none placeholder:text-white/25"
+                            aria-label={`${social.platform} profile URL suffix`}
+                          />
+                        </span>
                       </label>
 
-                      <label className="text-xs font-semibold text-black/45">
-                        URL
-                        <input
-                          value={social.url}
-                          onChange={(event) =>
-                            setSocials((current) =>
-                              current.map((item) =>
-                                item.id === social.id
-                                  ? { ...item, url: event.target.value }
-                                  : item
-                              )
-                            )
-                          }
-                          onBlur={() => updateSocial(social.id, { url: social.url })}
-                          className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-black"
-                        />
-                      </label>
-
-                      <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium text-black/65">
+                      <label className="inline-flex cursor-pointer items-center gap-2 justify-self-start text-xs text-white/45 sm:justify-self-center">
                         <input
                           type="checkbox"
                           checked={social.enabled}
+                          role="switch"
+                          aria-label={`Show ${platformOption?.label ?? social.platform} on your profile`}
+                          aria-checked={social.enabled}
                           onChange={(event) =>
                             updateSocial(social.id, { enabled: event.target.checked })
                           }
-                          className="accent-violet"
+                          className="peer sr-only"
                         />
-                        Visible
+                        <span className="relative h-5 w-9 rounded-full bg-white/15 transition after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-[#a78bfa] peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-white/50">
+                        </span>
+                        <span className="sr-only">{social.enabled ? "Visible" : "Hidden"}</span>
                       </label>
 
-                      <div className="flex items-center gap-1 self-end">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => void moveSocial(social.id, -1)}
                           disabled={index === 0 || reorderingSocials}
                           aria-label={`Move ${social.platform} social link up`}
-                          className="flex h-10 w-10 items-center justify-center rounded-lg text-black/55 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-white/40 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-20"
                         >
                           <ArrowUp size={17} />
                         </button>
@@ -2624,7 +2385,7 @@ export default function DashboardClient({
                           onClick={() => void moveSocial(social.id, 1)}
                           disabled={index === socials.length - 1 || reorderingSocials}
                           aria-label={`Move ${social.platform} social link down`}
-                          className="flex h-10 w-10 items-center justify-center rounded-lg text-black/55 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-30"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-white/40 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-20"
                         >
                           <ArrowDown size={17} />
                         </button>
@@ -2634,19 +2395,29 @@ export default function DashboardClient({
                         type="button"
                         onClick={() => removeSocial(social.id)}
                         aria-label={`Remove ${social.platform} social link`}
-                        className="flex h-10 w-10 items-center justify-center self-end rounded-lg text-black/40 hover:bg-red-50 hover:text-red-600"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg text-white/35 transition hover:bg-red-400/10 hover:text-red-300"
                       >
                         <Trash2 size={17} />
                       </button>
+                        </div>
+                      );
+                    })}
                     </div>
-                  ))}
-                  {socials.length === 0 && (
-                    <p className="rounded-xl bg-black/[0.03] p-5 text-center text-sm text-black/50">
-                      No social profiles yet.
-                    </p>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/10 px-5 py-8 text-center">
+                      <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-white/30">
+                        <Link2 size={19} />
+                      </div>
+                      <p className="mt-3 text-sm font-medium text-white/70">
+                        Your profile links will appear here
+                      </p>
+                      <p className="mt-1 text-xs text-white/35">
+                        Choose a platform above to add your first one.
+                      </p>
+                    </div>
                   )}
                 </div>
-              </div>
+              </section>
 
               <div className="mt-10 border-t border-black/10 pt-8">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2742,21 +2513,29 @@ export default function DashboardClient({
                       </div>
 
                       <label className="text-xs font-semibold text-black/45">
-                        TAGS (COMMA-SEPARATED)
+                        TAGS (SEPARATE WITH COMMAS)
                         <input
-                          value={project.tags.join(", ")}
-                          onChange={(event) => {
-                            const tags = event.target.value
+                          value={projectTagDrafts[project.id] ?? project.tags.join(", ")}
+                          placeholder="Design, React, Open source"
+                          onChange={(event) =>
+                            setProjectTagDrafts((current) => ({
+                              ...current,
+                              [project.id]: event.target.value
+                            }))
+                          }
+                          onBlur={() => {
+                            const tags = (projectTagDrafts[project.id] ?? "")
                               .split(",")
                               .map((tag) => tag.trim())
-                              .filter(Boolean);
-                            setProjects((current) =>
-                              current.map((item) =>
-                                item.id === project.id ? { ...item, tags } : item
-                              )
-                            );
+                              .filter((tag, index, allTags) =>
+                                tag.length > 0 && allTags.indexOf(tag) === index
+                              );
+                            setProjectTagDrafts((current) => ({
+                              ...current,
+                              [project.id]: tags.join(", ")
+                            }));
+                            void updateProject(project.id, { tags });
                           }}
-                          onBlur={() => updateProject(project.id, { tags: project.tags })}
                           className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-black"
                         />
                       </label>
@@ -2815,7 +2594,6 @@ export default function DashboardClient({
                     </p>
                   )}
                 </div>
-              </div>
               </div>
             </div>
           )}
@@ -3139,7 +2917,6 @@ export default function DashboardClient({
             <PreviewCard
               data={createPreviewData(
                 profile,
-                links,
                 socials,
                 projects,
                 media,
@@ -3180,7 +2957,6 @@ function ColorField({
 
 function createPreviewData(
   profile: Profile,
-  links: ProfileLink[],
   socials: SocialLink[],
   projects: Project[],
   media: ProfileMedia[],
@@ -3220,9 +2996,6 @@ function createPreviewData(
       created_at,
       updated_at
     },
-    links: links.filter(
-      (link) => link.enabled && urlSchema.safeParse(link.url).success
-    ),
     socials: socials.filter(
       (social) => social.enabled && urlSchema.safeParse(social.url).success
     ),

@@ -91,17 +91,6 @@ export type Profile = {
   updated_at: string;
 };
 
-export type ProfileLink = {
-  id: string;
-  profile_id: string;
-  title: string;
-  url: string;
-  description: string;
-  icon: string;
-  position: number;
-  enabled: boolean;
-};
-
 export type SocialLink = {
   id: string;
   profile_id: string;
@@ -148,7 +137,6 @@ export type ProfileBadge = {
 
 export type PublicProfileData = {
   profile: Omit<Profile, "user_id">;
-  links: ProfileLink[];
   socials: SocialLink[];
   projects: Project[];
   media: ProfileMedia[];
