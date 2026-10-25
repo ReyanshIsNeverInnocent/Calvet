@@ -276,6 +276,9 @@ export default function DashboardClient({
         initialProjects.map((project) => [project.id, project.tags.join(", ")])
       )
   );
+  const [mediaTitleDrafts, setMediaTitleDrafts] = useState<Record<string, string>>(
+    () => Object.fromEntries(initialMedia.map((item) => [item.id, item.title]))
+  );
 
   function updateProfile<K extends keyof Profile>(key: K, value: Profile[K]) {
     setProfile((current) => ({ ...current, [key]: value }));
@@ -1087,6 +1090,10 @@ export default function DashboardClient({
           .getPublicUrl(savedMedia.storage_path).data.publicUrl
       }
     ]);
+    setMediaTitleDrafts((current) => ({
+      ...current,
+      [savedMedia.id]: savedMedia.title
+    }));
     setNotice(`${mediaType.kind === "image" ? "Image" : "Video"} added to your profile.`);
   }
 
@@ -1101,6 +1108,11 @@ export default function DashboardClient({
     }
 
     setMedia((current) => current.filter((entry) => entry.id !== item.id));
+    setMediaTitleDrafts((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
     const { error: storageError } = await supabase.storage
       .from("creator-media")
       .remove([item.storage_path]);
@@ -1109,6 +1121,32 @@ export default function DashboardClient({
         ? `Media removed from your profile, but its uploaded file could not be deleted: ${storageError.message}`
         : "Media removed."
     );
+  }
+
+  async function updateCreatorMediaTitle(id: string, title: string) {
+    const normalizedTitle = title.trim().slice(0, 80);
+    const previousTitle = media.find((item) => item.id === id)?.title ?? "";
+    const { error } = await supabase
+      .from("profile_media")
+      .update({ title: normalizedTitle })
+      .eq("id", id);
+
+    if (error) {
+      setMediaTitleDrafts((current) => ({ ...current, [id]: previousTitle }));
+      setNotice(`Could not update media name: ${error.message}`);
+      return;
+    }
+
+    setMedia((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, title: normalizedTitle } : item
+      )
+    );
+    setMediaTitleDrafts((current) => ({
+      ...current,
+      [id]: normalizedTitle
+    }));
+    setNotice("Media name saved.");
   }
 
   async function exportProfile() {
@@ -2246,6 +2284,20 @@ export default function DashboardClient({
                       Pick an icon, add your handle, and you’re set.
                     </p>
                   </div>
+                  <label className="inline-flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 text-sm font-medium text-white/75 transition hover:border-white/20 hover:bg-white/[0.06]">
+                    <input
+                      type="checkbox"
+                      checked={profile.appearance.socialsMonochrome}
+                      onChange={(event) =>
+                        updateAppearance("socialsMonochrome", event.target.checked)
+                      }
+                      className="h-4 w-4 accent-violet-400"
+                    />
+                    Monochrome icons
+                    <span className="text-xs font-normal text-white/40">
+                      {profile.appearance.socialsMonochrome ? "On" : "Off"}
+                    </span>
+                  </label>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/45">
                     {socials.length} added
                   </span>
@@ -2532,6 +2584,18 @@ export default function DashboardClient({
                     <p className="mt-1 text-sm text-black/50">
                       Highlight selected work on your public page.
                     </p>
+                    <label className="mt-4 block max-w-sm text-xs font-semibold text-black/55">
+                      PUBLIC SECTION HEADING
+                      <input
+                        value={profile.appearance.projectsHeading}
+                        onChange={(event) =>
+                          updateAppearance("projectsHeading", event.target.value)
+                        }
+                        maxLength={32}
+                        placeholder="Projects"
+                        className="mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm font-normal text-black outline-none focus:border-violet"
+                      />
+                    </label>
                   </div>
                   <button
                     type="button"
@@ -2705,7 +2769,27 @@ export default function DashboardClient({
           )}
 
           {active === "media" && (
-            <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+            <div className="space-y-5">
+              <section className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
+                <h2 className="text-lg font-bold">Media section heading</h2>
+                <p className="mt-1 text-sm text-black/50">
+                  Choose the label visitors see above your media on your profile.
+                </p>
+                <label className="mt-4 block max-w-md text-sm font-semibold">
+                  Media heading
+                  <input
+                    value={profile.appearance.mediaHeading}
+                    onChange={(event) =>
+                      updateAppearance("mediaHeading", event.target.value)
+                    }
+                    maxLength={32}
+                    placeholder="Media"
+                    className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 font-normal outline-none focus:border-violet"
+                  />
+                </label>
+              </section>
+
+              <section className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="font-serif text-2xl">Your media</h2>
@@ -2774,10 +2858,25 @@ export default function DashboardClient({
                           className="max-h-64 w-full object-contain"
                         />
                       )}
-                      <div className="flex items-center justify-between gap-3 p-3">
-                        <p className="truncate text-sm font-medium">
-                          {item.title || (item.media_type === "video" ? "Video" : "Image")}
-                        </p>
+                      <div className="flex items-center gap-3 p-3">
+                        <label className="min-w-0 flex-1 text-xs font-semibold text-black/50">
+                          NAME
+                          <input
+                            value={mediaTitleDrafts[item.id] ?? item.title}
+                            maxLength={80}
+                            placeholder={item.media_type === "video" ? "Video" : "Image"}
+                            onChange={(event) =>
+                              setMediaTitleDrafts((current) => ({
+                                ...current,
+                                [item.id]: event.target.value
+                              }))
+                            }
+                            onBlur={(event) =>
+                              void updateCreatorMediaTitle(item.id, event.target.value)
+                            }
+                            className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm font-normal text-black outline-none focus:border-violet"
+                          />
+                        </label>
                         <button
                           type="button"
                           onClick={() =>
@@ -2802,6 +2901,7 @@ export default function DashboardClient({
                   ))}
                 </div>
               )}
+              </section>
             </div>
           )}
 
@@ -2902,57 +3002,6 @@ export default function DashboardClient({
                     </span>
                   </label>
                 </div>
-              </div>
-
-              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
-                <h2 className="text-lg font-bold">Profile section labels</h2>
-                <p className="mt-1 text-sm text-black/50">
-                  Personalize the headings shown above your projects and media.
-                </p>
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm font-semibold">
-                    Projects heading
-                    <input
-                      value={profile.appearance.projectsHeading}
-                      onChange={(event) =>
-                        updateAppearance("projectsHeading", event.target.value)
-                      }
-                      maxLength={32}
-                      placeholder="Projects"
-                      className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 font-normal outline-none focus:border-violet"
-                    />
-                  </label>
-                  <label className="text-sm font-semibold">
-                    Media heading
-                    <input
-                      value={profile.appearance.mediaHeading}
-                      onChange={(event) =>
-                        updateAppearance("mediaHeading", event.target.value)
-                      }
-                      maxLength={32}
-                      placeholder="Media"
-                      className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 font-normal outline-none focus:border-violet"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
-                <h2 className="text-lg font-bold">Social icon style</h2>
-                <p className="mt-1 text-sm text-black/50">
-                  Social icons use each platform’s colors by default.
-                </p>
-                <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-black/10 bg-white/70 p-4 text-sm font-medium transition hover:bg-white">
-                  <input
-                    type="checkbox"
-                    checked={profile.appearance.socialsMonochrome}
-                    onChange={(event) =>
-                      updateAppearance("socialsMonochrome", event.target.checked)
-                    }
-                    className="h-4 w-4 accent-violet"
-                  />
-                  Use monochrome social icons
-                </label>
               </div>
 
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">

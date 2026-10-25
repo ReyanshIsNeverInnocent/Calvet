@@ -75,6 +75,9 @@ export const profileSchema = z.object({
         })
       )
       .max(3),
+    socialsMonochrome: z.boolean(),
+    projectsHeading: z.string().trim().max(32),
+    mediaHeading: z.string().trim().max(32),
     avatarImageUpload: z.string().url().or(z.literal("")),
     bannerImageUpload: z.string().url().or(z.literal("")),
     backgroundImageUpload: z.string().url().or(z.literal("")),
