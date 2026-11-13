@@ -1,10 +1,6 @@
 <h1 align="center">Calvet</h1>
 
 <p align="center">
-  <img src="https://i.ibb.co/TqJwwDf1/image-7.png" alt="Calvet banner" width="600" />
-</p>
-
-<p align="center">
   <strong>One link. A whole lot more you.</strong><br />
   Make a shareable profile for the things you want people to find.
 </p>
@@ -13,6 +9,10 @@
   <a href="#highlights"><img src="https://img.shields.io/badge/Highlights-Explore-9b8cff?style=for-the-badge" alt="Highlights" /></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Quick%20Start-Get%20Started-c4b8ff?style=for-the-badge" alt="Quick Start" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-e8ddff?style=for-the-badge" alt="MIT License" /></a>
+</p>
+
+<p align="center">
+  <img src="https://i.ibb.co/TqJwwDf1/image-7.png" alt="Calvet banner" width="600" />
 </p>
 
 <h2 id="highlights">✨ Highlights</h2>

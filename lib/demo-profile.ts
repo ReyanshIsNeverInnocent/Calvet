@@ -14,7 +14,7 @@ export const demoProfile: PublicProfileData = {
     location: "Brooklyn, NY",
     pronouns: "they/them",
     status: "Making something new",
-    mode: "portfolio",
+    mode: "default",
     is_public: true,
     appearance: getAppearance({
       accentColor: "#a78bfa",

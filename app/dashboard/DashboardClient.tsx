@@ -1576,10 +1576,8 @@ export default function DashboardClient({
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {([
-                        ["minimal", "Minimal", "A narrow, streamlined profile card"],
-                        ["personal", "Personal", "Centered card with balanced sections"],
-                        ["social", "Social", "Link hub with clear, labeled buttons"],
-                        ["portfolio", "Portfolio", "Wide layout with projects beside media"]
+                        ["compact", "Compact", "A narrower, streamlined profile card"],
+                        ["default", "Default", "The standard centered profile layout"]
                       ] as const).map(([mode, title, description]) => (
                         <button
                           key={mode}

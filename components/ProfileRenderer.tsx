@@ -65,13 +65,7 @@ export default function ProfileRenderer({
         ? { page: "py-16 sm:py-24", section: "mt-16", projects: "mt-20" }
         : { page: "py-8 sm:py-12", section: "mt-8", projects: "mt-10" };
   const layoutWidth =
-    profile.mode === "portfolio"
-      ? "max-w-6xl"
-      : profile.mode === "minimal"
-        ? "max-w-md"
-        : profile.mode === "social"
-          ? "max-w-xl"
-          : "max-w-2xl";
+    profile.mode === "compact" ? "max-w-md" : "max-w-2xl";
   const motionDisabled =
     appearance.reducedMotion ||
     appearance.animation === "none";
@@ -499,7 +493,7 @@ export default function ProfileRenderer({
         <article
           data-layout={profile.mode}
           className={`profile-panel profile-surface relative overflow-hidden border ${
-            profile.mode === "minimal" ? "p-3 sm:p-4" : "p-4 sm:p-6"
+            profile.mode === "compact" ? "p-3 sm:p-4" : "p-4 sm:p-6"
           } ${cardEffect}`}
           style={{
             ...cardStyle,
@@ -684,13 +678,7 @@ export default function ProfileRenderer({
               )}
 
               {socials.length > 0 && (
-                <div
-                  className={`profile-socials mt-5 gap-2 ${
-                    profile.mode === "social"
-                      ? "mx-auto grid w-full max-w-md grid-cols-1 sm:grid-cols-2"
-                      : "flex flex-wrap justify-center"
-                  }`}
-                >
+                <div className="profile-socials mt-5 flex flex-wrap justify-center gap-2">
                   {socials.map((social, index) => {
                     const platform = getSocialPlatform(social.platform);
                     return (
@@ -700,14 +688,9 @@ export default function ProfileRenderer({
                         target="_blank"
                         rel="noreferrer noopener"
                         aria-label={platform?.label ?? social.platform}
-                        className={`social-button profile-surface flex items-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${
-                          profile.mode === "social"
-                            ? "min-h-11 w-full justify-start px-4"
-                            : "h-10 w-10 justify-center"
-                        } ${motion}`}
+                        className={`social-button profile-surface flex h-10 w-10 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${motion}`}
                         style={{
                           ...cardStyle,
-                          ...(profile.mode === "social" ? { borderRadius: "9999px" } : {}),
                           color: appearance.socialsMonochrome
                             ? appearance.textColor
                             : platform?.color,
@@ -718,11 +701,6 @@ export default function ProfileRenderer({
                           platform={social.platform}
                           monochrome={appearance.socialsMonochrome}
                         />
-                        {profile.mode === "social" && (
-                          <span className="ml-2 text-xs">
-                            {platform?.label ?? social.platform}
-                          </span>
-                        )}
                       </a>
                     );
                   })}
@@ -949,22 +927,12 @@ export default function ProfileRenderer({
 
             {projects.length > 0 && (
               <section
-                className={`profile-projects ${spacing.projects} ${
-                  profile.mode === "portfolio" ? "order-2" : "order-3"
-                } ${
-                  profile.mode === "portfolio" && data.media.length === 0
-                    ? "portfolio-projects-full"
-                    : ""
-                }`}
+                className={`profile-projects ${spacing.projects} order-3`}
               >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
                   {appearance.projectsHeading || "Projects"}
                 </h2>
-                <div
-                  className={`grid gap-1 ${
-                    profile.mode === "portfolio" ? "sm:grid-cols-1" : "sm:grid-cols-2"
-                  }`}
-                >
+                <div className="grid gap-1 sm:grid-cols-2">
                   {projects.map((project, index) => {
                     const projectCardClass = `project-card group flex min-w-0 items-center gap-3 rounded-2xl px-2.5 py-2.5 transition duration-200 hover:bg-white/[0.045] ${motion}`;
                     const projectCardStyle = {
@@ -1049,11 +1017,7 @@ export default function ProfileRenderer({
 
             {data.media.length > 0 && (
               <section
-                className={`profile-media ${spacing.projects} order-4 ${
-                  profile.mode === "portfolio" && projects.length > 0
-                    ? "portfolio-media-side"
-                    : ""
-                }`}
+                className={`profile-media ${spacing.projects} order-4`}
               >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
                   {appearance.mediaHeading || "Media"}

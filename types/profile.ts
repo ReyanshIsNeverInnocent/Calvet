@@ -87,7 +87,7 @@ export type Profile = {
   location: string;
   pronouns: string;
   status: string;
-  mode: "minimal" | "social" | "portfolio" | "personal";
+  mode: "compact" | "default";
   is_public: boolean;
   appearance: Appearance;
   created_at: string;

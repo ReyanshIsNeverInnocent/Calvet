@@ -32,7 +32,7 @@ export const profileSchema = z.object({
   location: z.string().trim().max(80),
   pronouns: z.string().trim().max(40),
   status: z.string().trim().max(100),
-  mode: z.enum(["minimal", "social", "portfolio", "personal"]),
+  mode: z.enum(["compact", "default"]),
   is_public: z.boolean(),
   appearance: z.object({
     theme: z.literal("dark"),
