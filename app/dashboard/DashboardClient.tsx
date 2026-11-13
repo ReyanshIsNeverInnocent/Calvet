@@ -1503,7 +1503,7 @@ export default function DashboardClient({
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
                 <h2 className="font-serif text-2xl">Design</h2>
                 <p className="mt-1 text-sm text-[#77776d]">
-                  Start with a style, then open the controls only if you want them.
+                  Choose a starting style, then fine-tune the details you care about.
                 </p>
 
                 <div className="mt-6 space-y-6">
@@ -1525,7 +1525,7 @@ export default function DashboardClient({
                         },
                         {
                           id: "minimal",
-                          title: "Minimal",
+                          title: "Calm",
                           description: "Clean, quiet, and solid",
                           swatch: "from-stone-400/20 via-[#222] to-[#101010]"
                         }
@@ -1570,16 +1570,16 @@ export default function DashboardClient({
                   </section>
 
                   <section>
-                    <h3 className="text-sm font-semibold">Page layout</h3>
+                    <h3 className="text-sm font-semibold">Profile layout</h3>
                     <p className="mt-1 text-xs text-black/50">
-                      Pick what visitors should notice first.
+                      Each layout changes profile width and section arrangement.
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {([
-                        ["minimal", "Minimal", "Compact intro and essentials"],
-                        ["personal", "Personal", "Balanced profile with music"],
-                        ["social", "Social", "Socials and compact profile details"],
-                        ["portfolio", "Portfolio", "Wide projects-first layout"]
+                        ["minimal", "Minimal", "A narrow, streamlined profile card"],
+                        ["personal", "Personal", "Centered card with balanced sections"],
+                        ["social", "Social", "Link hub with clear, labeled buttons"],
+                        ["portfolio", "Portfolio", "Wide layout with projects beside media"]
                       ] as const).map(([mode, title, description]) => (
                         <button
                           key={mode}
@@ -1601,19 +1601,117 @@ export default function DashboardClient({
                     </div>
                   </section>
 
-                  <details className="rounded-2xl border border-black/10 bg-white/60 p-4">
-                    <summary className="cursor-pointer list-none text-sm font-semibold marker:hidden">
-                      Customize appearance
-                      <span className="ml-2 text-xs font-normal text-black/45">
-                        Colors, glass, effects, and more
-                      </span>
-                    </summary>
+                  <section className="rounded-2xl border border-black/10 bg-white/60 p-4">
+                    <h3 className="text-sm font-semibold">Quick adjustments</h3>
+                    <p className="mt-1 text-xs text-black/50">
+                      Core color, background, shape, and type controls.
+                    </p>
+                    <div className="mt-4 grid gap-5 sm:grid-cols-2">
+                      <ColorField
+                        label="Accent"
+                        value={profile.appearance.accentColor}
+                        onChange={(value) => updateAppearance("accentColor", value)}
+                      />
+                      <ColorField
+                        label="Page background"
+                        value={profile.appearance.backgroundColor}
+                        onChange={(value) => updateAppearance("backgroundColor", value)}
+                      />
+                      <ColorField
+                        label="Text"
+                        value={profile.appearance.textColor}
+                        onChange={(value) => updateAppearance("textColor", value)}
+                      />
+                      <div className="text-sm font-semibold">
+                        Background image
+                        <span className="mt-2 flex items-center gap-3">
+                          <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium hover:border-violet">
+                            Upload background
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(event) =>
+                                uploadProfileImage(event, "backgroundImageUpload")
+                              }
+                              className="sr-only"
+                            />
+                          </label>
+                          {profile.appearance.backgroundImageUpload && (
+                            <button
+                              type="button"
+                              onClick={() => updateAppearance("backgroundImageUpload", "")}
+                              className="text-xs font-medium text-red-600 hover:underline"
+                            >
+                              Remove upload
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                      <label className="text-sm font-semibold">
+                        Avatar and status shape
+                        <select
+                          value={profile.appearance.radius}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "radius",
+                              event.target.value as Appearance["radius"]
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="small">Soft corners</option>
+                          <option value="medium">Rounded</option>
+                          <option value="large">Extra rounded</option>
+                        </select>
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Typography
+                        <select
+                          value={profile.appearance.font}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "font",
+                              event.target.value as Appearance["font"]
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="inter">Inter</option>
+                          <option value="system">System</option>
+                          <option value="serif">Serif</option>
+                        </select>
+                      </label>
+                      <label className="text-sm font-semibold">
+                        Spacing
+                        <select
+                          value={profile.appearance.spacing}
+                          onChange={(event) =>
+                            updateAppearance(
+                              "spacing",
+                              event.target.value as Appearance["spacing"]
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                        >
+                          <option value="compact">Compact</option>
+                          <option value="comfortable">Comfortable</option>
+                          <option value="airy">Airy</option>
+                        </select>
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-black/10 bg-white/60 p-4">
+                    <h3 className="text-sm font-semibold">Fine-tune</h3>
+                    <p className="mt-1 text-xs text-black/50">
+                      Optional controls for surfaces, motion, and special effects.
+                    </p>
                     <div className="mt-5 grid gap-5 sm:grid-cols-2">
                       <details className="sm:col-span-2 rounded-2xl border border-black/10 bg-white/70 p-4">
-                        <summary className="cursor-pointer list-none text-sm font-semibold">
-                          Glass surface controls
+                        <summary className="cursor-pointer text-sm font-semibold">
+                          Profile surfaces
                           <span className="ml-2 text-xs font-normal text-black/45">
-                            Optional tint, blur, and border tuning
+                            Style, tint, blur, borders, and corners
                           </span>
                         </summary>
                         <fieldset className="mt-4 space-y-4">
@@ -1748,162 +1846,99 @@ export default function DashboardClient({
                         </fieldset>
                       </details>
 
-                      <ColorField
-                        label="Accent"
-                        value={profile.appearance.accentColor}
-                        onChange={(value) => updateAppearance("accentColor", value)}
-                      />
-
-                      <ColorField
-                        label="Page background"
-                        value={profile.appearance.backgroundColor}
-                        onChange={(value) => updateAppearance("backgroundColor", value)}
-                      />
-
-                      <ColorField
-                        label="Text"
-                        value={profile.appearance.textColor}
-                        onChange={(value) => updateAppearance("textColor", value)}
-                      />
-
-                      <div className="text-sm font-semibold">
-                        Background image
-                        <span className="mt-2 flex items-center gap-3">
-                          <label className="cursor-pointer rounded-lg border border-black/10 px-3 py-2 text-xs font-medium hover:border-violet">
-                            Upload background
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp"
+                      <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
+                        <summary className="cursor-pointer text-sm font-semibold">
+                          Motion and effects
+                          <span className="ml-2 text-xs font-normal text-black/45">
+                            Background, card, and animation options
+                          </span>
+                        </summary>
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          <label className="text-sm font-semibold">
+                            Animation
+                            <select
+                              value={profile.appearance.animation}
                               onChange={(event) =>
-                                uploadProfileImage(event, "backgroundImageUpload")
+                                updateAppearance(
+                                  "animation",
+                                  event.target.value as Appearance["animation"]
+                                )
                               }
-                              className="sr-only"
-                            />
-                          </label>
-                          {profile.appearance.backgroundImageUpload && (
-                            <button
-                              type="button"
-                              onClick={() => updateAppearance("backgroundImageUpload", "")}
-                              className="text-xs font-medium text-red-600 hover:underline"
+                              className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
                             >
-                              Remove upload
-                            </button>
-                          )}
-                        </span>
-                      </div>
+                              <option value="none">None</option>
+                              <option value="subtle">Subtle</option>
+                              <option value="playful">Playful</option>
+                              <option value="float">Floating</option>
+                              <option value="pulse">Soft pulse</option>
+                            </select>
+                          </label>
 
-                      <label className="text-sm font-semibold">
-                        Avatar and status shape
-                        <select
-                          value={profile.appearance.radius}
-                          onChange={(event) =>
-                            updateAppearance(
-                              "radius",
-                              event.target.value as Appearance["radius"]
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                        >
-                          <option value="small">Soft corners</option>
-                          <option value="medium">Rounded</option>
-                          <option value="large">Extra rounded</option>
-                        </select>
-                      </label>
+                          <label className="text-sm font-semibold">
+                            Background effect
+                            <select
+                              value={profile.appearance.backgroundEffect}
+                              onChange={(event) =>
+                                updateAppearance(
+                                  "backgroundEffect",
+                                  event.target.value as Appearance["backgroundEffect"]
+                                )
+                              }
+                              className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                            >
+                              <option value="none">None</option>
+                              <option value="aurora">Aurora glow</option>
+                              <option value="grid">Soft grid</option>
+                            </select>
+                          </label>
 
-                      <label className="text-sm font-semibold">
-                        Typography
-                        <select
-                          value={profile.appearance.font}
-                          onChange={(event) =>
-                            updateAppearance(
-                              "font",
-                              event.target.value as Appearance["font"]
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                        >
-                          <option value="inter">Inter</option>
-                          <option value="system">System</option>
-                          <option value="serif">Serif</option>
-                        </select>
-                      </label>
-
-                      <label className="text-sm font-semibold">
-                        Spacing
-                        <select
-                          value={profile.appearance.spacing}
-                          onChange={(event) =>
-                            updateAppearance(
-                              "spacing",
-                              event.target.value as Appearance["spacing"]
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                        >
-                          <option value="compact">Compact</option>
-                          <option value="comfortable">Comfortable</option>
-                          <option value="airy">Airy</option>
-                        </select>
-                      </label>
-
-                      <label className="text-sm font-semibold">
-                        Animation
-                        <select
-                          value={profile.appearance.animation}
-                          onChange={(event) =>
-                            updateAppearance(
-                              "animation",
-                              event.target.value as Appearance["animation"]
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                        >
-                          <option value="none">None</option>
-                          <option value="subtle">Subtle</option>
-                          <option value="playful">Playful</option>
-                          <option value="float">Floating</option>
-                          <option value="pulse">Soft pulse</option>
-                        </select>
-                      </label>
-
-                      <label className="text-sm font-semibold">
-                        Background effect
-                        <select
-                          value={profile.appearance.backgroundEffect}
-                          onChange={(event) =>
-                            updateAppearance(
-                              "backgroundEffect",
-                              event.target.value as Appearance["backgroundEffect"]
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                        >
-                          <option value="none">None</option>
-                          <option value="aurora">Aurora glow</option>
-                          <option value="grid">Soft grid</option>
-                        </select>
-                      </label>
-
-                      <label className="text-sm font-semibold">
-                        Profile card effect
-                        <select
-                          value={profile.appearance.cardEffect}
-                          onChange={(event) =>
-                            updateAppearance(
-                              "cardEffect",
-                              event.target.value as Appearance["cardEffect"]
-                            )
-                          }
-                          className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
-                        >
-                          <option value="none">None</option>
-                          <option value="glow">Accent glow</option>
-                          <option value="gradient">Color wash</option>
-                        </select>
-                      </label>
+                          <label className="text-sm font-semibold">
+                            Profile card effect
+                            <select
+                              value={profile.appearance.cardEffect}
+                              onChange={(event) =>
+                                updateAppearance(
+                                  "cardEffect",
+                                  event.target.value as Appearance["cardEffect"]
+                                )
+                              }
+                              className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-3"
+                            >
+                              <option value="none">None</option>
+                              <option value="glow">Accent glow</option>
+                              <option value="gradient">Color wash</option>
+                            </select>
+                          </label>
+                          <p className="text-xs font-normal leading-5 text-black/45 sm:col-span-2">
+                            Reduce motion disables animation while leaving static styles available.
+                          </p>
+                          <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
+                            <input
+                              type="checkbox"
+                              checked={profile.appearance.shadow}
+                              onChange={(event) =>
+                                updateAppearance("shadow", event.target.checked)
+                              }
+                              className="h-4 w-4 accent-violet"
+                            />
+                            Soft card shadows
+                          </label>
+                          <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
+                            <input
+                              type="checkbox"
+                              checked={profile.appearance.reducedMotion}
+                              onChange={(event) =>
+                                updateAppearance("reducedMotion", event.target.checked)
+                              }
+                              className="h-4 w-4 accent-violet"
+                            />
+                            Reduce motion
+                          </label>
+                        </div>
+                      </details>
 
                       <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
-                        <summary className="cursor-pointer list-none text-sm font-semibold">
+                        <summary className="cursor-pointer text-sm font-semibold">
                           Click-to-enter screen
                           <span className="ml-2 text-xs font-normal text-black/45">
                             Text, blur, and entrance effect
@@ -1973,7 +2008,7 @@ export default function DashboardClient({
                       </details>
 
                       <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
-                        <summary className="cursor-pointer list-none text-sm font-semibold">
+                        <summary className="cursor-pointer text-sm font-semibold">
                           Username effects
                           <span className="ml-2 text-xs font-normal text-black/45">
                             Animate or style your display name
@@ -2029,36 +2064,8 @@ export default function DashboardClient({
                         </fieldset>
                       </details>
 
-                      <p className="text-xs font-normal leading-5 text-black/45 sm:col-span-2">
-                        Effects are built in and free. Reduce motion disables
-                        animation while leaving static styles available.
-                      </p>
-
-                      <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
-                        <input
-                          type="checkbox"
-                          checked={profile.appearance.shadow}
-                          onChange={(event) =>
-                            updateAppearance("shadow", event.target.checked)
-                          }
-                          className="h-4 w-4 accent-violet"
-                        />
-                        Soft card shadows
-                      </label>
-
-                      <label className="flex items-center gap-3 rounded-xl bg-black/[0.03] p-4 text-sm font-semibold">
-                        <input
-                          type="checkbox"
-                          checked={profile.appearance.reducedMotion}
-                          onChange={(event) =>
-                            updateAppearance("reducedMotion", event.target.checked)
-                          }
-                          className="h-4 w-4 accent-violet"
-                        />
-                        Reduce motion
-                      </label>
                     </div>
-                  </details>
+                  </section>
                 </div>
               </div>
 

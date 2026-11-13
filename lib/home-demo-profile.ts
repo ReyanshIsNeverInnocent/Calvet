@@ -1,6 +1,6 @@
 export const homeDemoProfile = {
   displayName: "Casanova",
-  username: "seduce",
+  username: "the.ultimate.seducer",
   avatarUrl: "https://i.pinimg.com/736x/85/cf/6b/85cf6bc19328a8606c6fd5fc18a07700.jpg",
   avatarFallback: "oh",
   coverCaption: "keep your huzz away",
