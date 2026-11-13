@@ -42,6 +42,7 @@ export type Appearance = {
   surfaceRadius: number;
   surfaceHighlight: boolean;
   radius: "small" | "medium" | "large";
+  bannerRadius: number;
   shadow: boolean;
   font: "inter" | "system" | "serif";
   spacing: "compact" | "comfortable" | "airy";
@@ -87,7 +88,7 @@ export type Profile = {
   location: string;
   pronouns: string;
   status: string;
-  mode: "compact" | "default";
+  mode: "default" | "modern" | "simplistic" | "sleek";
   is_public: boolean;
   appearance: Appearance;
   created_at: string;

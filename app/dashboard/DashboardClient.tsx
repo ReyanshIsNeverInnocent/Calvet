@@ -1572,12 +1572,14 @@ export default function DashboardClient({
                   <section>
                     <h3 className="text-sm font-semibold">Profile layout</h3>
                     <p className="mt-1 text-xs text-black/50">
-                      Each layout changes profile width and section arrangement.
+                      Choose a profile style. Each one changes how visitors see your content.
                     </p>
                     <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {([
-                        ["compact", "Compact", "A narrower, streamlined profile card"],
-                        ["default", "Default", "The standard centered profile layout"]
+                        ["default", "Default", "Classic centered profile with a banner"],
+                        ["modern", "Modern", "Profile and content in separate tabs"],
+                        ["simplistic", "Simplistic", "Compact profile with labeled link buttons"],
+                        ["sleek", "Sleek", "Clean card with a rounded inset banner"]
                       ] as const).map(([mode, title, description]) => (
                         <button
                           key={mode}
@@ -1662,6 +1664,22 @@ export default function DashboardClient({
                           <option value="large">Extra rounded</option>
                         </select>
                       </label>
+                      {profile.mode === "sleek" && (
+                        <label className="text-sm font-semibold">
+                          Banner corner radius: {profile.appearance.bannerRadius}px
+                          <input
+                            type="range"
+                            min="0"
+                            max="48"
+                            step="1"
+                            value={profile.appearance.bannerRadius}
+                            onChange={(event) =>
+                              updateAppearance("bannerRadius", Number(event.target.value))
+                            }
+                            className="mt-4 block w-full accent-violet"
+                          />
+                        </label>
+                      )}
                       <label className="text-sm font-semibold">
                         Typography
                         <select

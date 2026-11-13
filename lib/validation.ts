@@ -32,7 +32,7 @@ export const profileSchema = z.object({
   location: z.string().trim().max(80),
   pronouns: z.string().trim().max(40),
   status: z.string().trim().max(100),
-  mode: z.enum(["compact", "default"]),
+  mode: z.enum(["default", "modern", "simplistic", "sleek"]),
   is_public: z.boolean(),
   appearance: z.object({
     theme: z.literal("dark"),
@@ -50,6 +50,7 @@ export const profileSchema = z.object({
     surfaceRadius: z.number().min(0).max(48),
     surfaceHighlight: z.boolean(),
     radius: z.enum(["small", "medium", "large"]),
+    bannerRadius: z.number().min(0).max(48).default(16),
     shadow: z.boolean(),
     font: z.enum(["inter", "system", "serif"]),
     spacing: z.enum(["compact", "comfortable", "airy"]),

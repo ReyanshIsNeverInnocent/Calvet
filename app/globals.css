@@ -1723,8 +1723,43 @@ a {
   }
 }
 
-.profile-panel[data-layout="compact"] .profile-name-row h1 {
+.profile-panel[data-layout="simplistic"] .profile-name-row h1 {
   font-size: clamp(1.75rem, 4vw, 2.25rem);
+}
+
+.profile-panel[data-layout="simplistic"] .profile-socials {
+  max-width: 32rem;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.profile-panel[data-layout="simplistic"] .social-button {
+  border-radius: 9999px;
+}
+
+.profile-panel[data-layout="sleek"] .profile-identity-sleek {
+  margin-top: 1.25rem;
+}
+
+.profile-layout-tab {
+  min-height: 2.5rem;
+  border: 1px solid color-mix(in srgb, var(--profile-accent-color) 20%, rgba(255,255,255,.12));
+  border-radius: 9999px;
+  padding: .5rem 1rem;
+  color: rgba(255,255,255,.62);
+  font-size: .75rem;
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.profile-layout-tab[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--profile-accent-color) 58%, rgba(255,255,255,.2));
+  background: color-mix(in srgb, var(--profile-accent-color) 16%, transparent);
+  color: var(--profile-text-color);
+}
+
+.profile-layout-tab:focus-visible {
+  outline: 2px solid var(--profile-accent-color);
+  outline-offset: 3px;
 }
 
 .profile-panel-glow {

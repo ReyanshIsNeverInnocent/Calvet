@@ -23,6 +23,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type PointerEvent,
   type WheelEvent
 } from "react";
@@ -65,7 +66,11 @@ export default function ProfileRenderer({
         ? { page: "py-16 sm:py-24", section: "mt-16", projects: "mt-20" }
         : { page: "py-8 sm:py-12", section: "mt-8", projects: "mt-10" };
   const layoutWidth =
-    profile.mode === "compact" ? "max-w-md" : "max-w-2xl";
+    profile.mode === "simplistic"
+      ? "max-w-md"
+      : profile.mode === "sleek"
+        ? "max-w-3xl"
+        : "max-w-2xl";
   const motionDisabled =
     appearance.reducedMotion ||
     appearance.animation === "none";
@@ -142,12 +147,19 @@ export default function ProfileRenderer({
   const [duration, setDuration] = useState(0);
   const [playbackError, setPlaybackError] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState<number | null>(null);
+  const [activeModernTab, setActiveModernTab] = useState<"profile" | "widgets">("profile");
   const [mediaZoom, setMediaZoom] = useState(1);
   const [mediaPan, setMediaPan] = useState({ x: 0, y: 0 });
   const [mediaPanning, setMediaPanning] = useState(false);
   const [mediaNaturalSize, setMediaNaturalSize] = useState({ width: 0, height: 0 });
   const [mediaStageSize, setMediaStageSize] = useState({ width: 0, height: 0 });
   const activeTrack = musicTracks[activeTrackIndex] ?? musicTracks[0];
+  const hasModernWidgets = projects.length > 0 || data.media.length > 0;
+  const showModernTabs = profile.mode === "modern" && hasModernWidgets;
+  const modernProfileTabId = `modern-profile-tab-${profile.id}`;
+  const modernWidgetsTabId = `modern-widgets-tab-${profile.id}`;
+  const modernProfilePanelId = `modern-profile-panel-${profile.id}`;
+  const modernWidgetsPanelId = `modern-widgets-panel-${profile.id}`;
   const musicUrl = activeTrack?.url ?? null;
   const activeMedia: ProfileMedia | null =
     activeMediaIndex === null ? null : data.media[activeMediaIndex] ?? null;
@@ -470,6 +482,25 @@ export default function ProfileRenderer({
     return `${minutes}:${seconds}`;
   }
 
+  function handleModernTabKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    let nextTab: "profile" | "widgets" | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      nextTab = activeModernTab === "profile" ? "widgets" : "profile";
+    } else if (event.key === "Home") {
+      nextTab = "profile";
+    } else if (event.key === "End") {
+      nextTab = "widgets";
+    }
+
+    if (!nextTab) return;
+
+    event.preventDefault();
+    setActiveModernTab(nextTab);
+    document
+      .getElementById(nextTab === "profile" ? modernProfileTabId : modernWidgetsTabId)
+      ?.focus();
+  }
+
   return (
     <main
       className={`public-profile ${preview ? "profile-preview" : "min-h-screen"} profile-background-${appearance.backgroundEffect} px-4 sm:px-6 ${motionDisabled ? "profile-motion-disabled" : "profile-page-enter"}`}
@@ -493,7 +524,7 @@ export default function ProfileRenderer({
         <article
           data-layout={profile.mode}
           className={`profile-panel profile-surface relative overflow-hidden border ${
-            profile.mode === "compact" ? "p-3 sm:p-4" : "p-4 sm:p-6"
+            profile.mode === "simplistic" ? "p-3 sm:p-4" : "p-4 sm:p-6"
           } ${cardEffect}`}
           style={{
             ...cardStyle,
@@ -517,9 +548,16 @@ export default function ProfileRenderer({
           <div className="profile-content relative flex flex-col">
             {bannerImage && (
               <div
-                className="profile-banner-fade relative order-0 -mx-5 -mt-5 mb-0 aspect-[3/1] overflow-hidden rounded-t-[inherit] sm:-mx-9 sm:-mt-9"
+                className={`profile-banner-fade relative order-0 mb-0 aspect-[3/1] overflow-hidden ${
+                  profile.mode === "sleek"
+                    ? "rounded-2xl"
+                    : "-mx-5 -mt-5 rounded-t-[inherit] sm:-mx-9 sm:-mt-9"
+                }`}
                 style={{
-                  "--profile-banner-fade-color": `color-mix(in srgb, ${surfaceColor} ${appearance.cardOpacity * 100}%, transparent)`
+                  "--profile-banner-fade-color": `color-mix(in srgb, ${surfaceColor} ${appearance.cardOpacity * 100}%, transparent)`,
+                  ...(profile.mode === "sleek"
+                    ? { borderRadius: `${appearance.bannerRadius}px` }
+                    : {})
                 } as CSSProperties}
               >
                 <Image
@@ -533,8 +571,14 @@ export default function ProfileRenderer({
             )}
 
             <section
+              id={showModernTabs ? modernProfilePanelId : undefined}
+              role={showModernTabs ? "tabpanel" : undefined}
+              aria-labelledby={showModernTabs ? modernProfileTabId : undefined}
+              hidden={showModernTabs && activeModernTab !== "profile"}
               className={`profile-identity relative z-10 order-1 text-center ${
-                bannerImage ? "-mt-12 sm:-mt-16" : ""
+                bannerImage && profile.mode !== "sleek" ? "-mt-12 sm:-mt-16" : ""
+              } ${profile.mode === "sleek" && bannerImage ? "mt-4 sm:mt-5" : ""} ${
+                profile.mode === "sleek" ? "profile-identity-sleek" : ""
               }`}
             >
               <div className="relative inline-block">
@@ -678,7 +722,11 @@ export default function ProfileRenderer({
               )}
 
               {socials.length > 0 && (
-                <div className="profile-socials mt-5 flex flex-wrap justify-center gap-2">
+                <div
+                  className={`profile-socials mt-5 flex flex-wrap justify-center gap-2 ${
+                    profile.mode === "simplistic" ? "profile-socials-simplistic" : ""
+                  }`}
+                >
                   {socials.map((social, index) => {
                     const platform = getSocialPlatform(social.platform);
                     return (
@@ -688,7 +736,11 @@ export default function ProfileRenderer({
                         target="_blank"
                         rel="noreferrer noopener"
                         aria-label={platform?.label ?? social.platform}
-                        className={`social-button profile-surface flex h-10 w-10 items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${motion}`}
+                        className={`social-button profile-surface flex items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${
+                          profile.mode === "simplistic"
+                            ? "h-10 gap-2 px-3"
+                            : "h-10 w-10"
+                        } ${motion}`}
                         style={{
                           ...cardStyle,
                           color: appearance.socialsMonochrome
@@ -701,6 +753,11 @@ export default function ProfileRenderer({
                           platform={social.platform}
                           monochrome={appearance.socialsMonochrome}
                         />
+                        {profile.mode === "simplistic" && (
+                          <span className="text-xs">
+                            {platform?.label ?? social.platform}
+                          </span>
+                        )}
                       </a>
                     );
                   })}
@@ -925,9 +982,52 @@ export default function ProfileRenderer({
 
             </section>
 
+            {showModernTabs && (
+              <div
+                role="tablist"
+                aria-label="Profile sections"
+                className="profile-layout-tabs order-2 mt-7 flex justify-center gap-2"
+                onKeyDown={handleModernTabKeyDown}
+              >
+                <button
+                  id={modernProfileTabId}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeModernTab === "profile"}
+                  aria-controls={modernProfilePanelId}
+                  tabIndex={activeModernTab === "profile" ? 0 : -1}
+                  onClick={() => setActiveModernTab("profile")}
+                  className="profile-layout-tab"
+                >
+                  Profile
+                </button>
+                <button
+                  id={modernWidgetsTabId}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeModernTab === "widgets"}
+                  aria-controls={modernWidgetsPanelId}
+                  tabIndex={activeModernTab === "widgets" ? 0 : -1}
+                  onClick={() => setActiveModernTab("widgets")}
+                  className="profile-layout-tab"
+                >
+                  Projects &amp; media
+                </button>
+              </div>
+            )}
+
+            <div
+              id={showModernTabs ? modernWidgetsPanelId : undefined}
+              role={showModernTabs ? "tabpanel" : undefined}
+              aria-labelledby={showModernTabs ? modernWidgetsTabId : undefined}
+              hidden={showModernTabs && activeModernTab !== "widgets"}
+              className={showModernTabs ? "order-3" : "contents"}
+            >
             {projects.length > 0 && (
               <section
-                className={`profile-projects ${spacing.projects} order-3`}
+                className={`profile-projects ${spacing.projects} ${
+                  showModernTabs ? "" : "order-3"
+                }`}
               >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
                   {appearance.projectsHeading || "Projects"}
@@ -1017,7 +1117,9 @@ export default function ProfileRenderer({
 
             {data.media.length > 0 && (
               <section
-                className={`profile-media ${spacing.projects} order-4`}
+                className={`profile-media ${spacing.projects} ${
+                  showModernTabs ? "" : "order-4"
+                }`}
               >
                 <h2 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
                   {appearance.mediaHeading || "Media"}
@@ -1065,6 +1167,7 @@ export default function ProfileRenderer({
                 </div>
               </section>
             )}
+            </div>
           </div>
         </article>
 

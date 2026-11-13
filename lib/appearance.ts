@@ -16,6 +16,7 @@ export const defaultAppearance: Appearance = {
   surfaceRadius: 26,
   surfaceHighlight: true,
   radius: "large",
+  bannerRadius: 16,
   shadow: true,
   font: "inter",
   spacing: "comfortable",
@@ -132,6 +133,11 @@ export function getAppearance(value: Partial<Appearance> | null | undefined): Ap
       typeof appearance.surfaceHighlight === "boolean"
         ? appearance.surfaceHighlight
         : defaultAppearance.surfaceHighlight,
+    bannerRadius:
+      typeof appearance.bannerRadius === "number" &&
+      Number.isFinite(appearance.bannerRadius)
+        ? Math.min(48, Math.max(0, appearance.bannerRadius))
+        : defaultAppearance.bannerRadius,
     animation: ["none", "subtle", "playful", "float", "pulse"].includes(
       appearance.animation
     )
