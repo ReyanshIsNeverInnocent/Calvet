@@ -738,11 +738,18 @@ export default function ProfileRenderer({
                         aria-label={platform?.label ?? social.platform}
                         className={`social-button profile-surface flex items-center justify-center border text-white/65 transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:text-white ${
                           profile.mode === "simplistic"
-                            ? "h-10 gap-2 px-3"
+                            ? "min-h-12 gap-3 px-2.5"
                             : "h-10 w-10"
                         } ${motion}`}
                         style={{
-                          ...cardStyle,
+                          ...(profile.mode === "simplistic"
+                            ? {
+                                background: "transparent",
+                                borderColor: "color-mix(in srgb, var(--profile-accent-color) 20%, rgba(255,255,255,.12))",
+                                borderWidth: "0 0 1px",
+                                borderRadius: 0
+                              }
+                            : cardStyle),
                           color: appearance.socialsMonochrome
                             ? appearance.textColor
                             : platform?.color,
@@ -757,6 +764,9 @@ export default function ProfileRenderer({
                           <span className="text-xs">
                             {platform?.label ?? social.platform}
                           </span>
+                        )}
+                        {profile.mode === "simplistic" && (
+                          <ArrowUpRight aria-hidden="true" size={14} className="profile-social-link-arrow" />
                         )}
                       </a>
                     );

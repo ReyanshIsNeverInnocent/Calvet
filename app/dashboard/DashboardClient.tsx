@@ -60,6 +60,7 @@ type Props = {
   initialMedia: ProfileMedia[];
   initialBadges: ProfileBadge[];
   initialViews: DailyProfileView[];
+  isSpecialAccount: boolean;
 };
 
 type DailyProfileView = { view_date: string; views: number };
@@ -232,7 +233,8 @@ export default function DashboardClient({
   initialProjects,
   initialMedia,
   initialBadges,
-  initialViews
+  initialViews,
+  isSpecialAccount
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -505,7 +507,9 @@ export default function DashboardClient({
 
     if (files.length === 0) return;
     const existingTracks = profile.appearance.musicTracks;
-    const availableSlots = 3 - existingTracks.length;
+    const availableSlots = isSpecialAccount
+      ? Number.POSITIVE_INFINITY
+      : 3 - existingTracks.length;
     if (availableSlots <= 0) {
       setNotice("A profile can have up to 3 songs. Remove one before adding another.");
       return;
@@ -1270,7 +1274,7 @@ export default function DashboardClient({
                 className="inline-flex items-center gap-2 rounded-full border border-[#292b24]/10 bg-[#fffdf7] px-4 py-2 text-sm font-semibold hover:bg-[#e6edb9]"
               >
                 <Award size={16} />
-                Manage badges
+                Developer panel
               </Link>
             )}
             <SignOutButton />
@@ -2093,7 +2097,9 @@ export default function DashboardClient({
               <div className="rounded-[1.8rem] border border-white/80 bg-[#fffdf7]/90 p-5 shadow-[0_12px_40px_rgba(56,49,37,.06)] sm:p-7">
                 <h2 className="font-serif text-2xl">Put something on</h2>
                 <p className="mt-1 text-sm text-[#77776d]">
-                  Add up to three songs, then drag them into the order you want.
+                  {isSpecialAccount
+                    ? "Add as many songs as you want, then drag them into the order you want."
+                    : "Add up to three songs, then drag them into the order you want."}
                 </p>
 
                 <div className="mt-6">
@@ -2102,7 +2108,9 @@ export default function DashboardClient({
                     <span>
                       <span className="block text-sm font-semibold">Add songs</span>
                       <span className="mt-1 block text-xs font-normal text-black/50">
-                        {profile.appearance.musicTracks.length} of 3 songs · MP3, M4A, AAC, OGG, WAV, or WebM, up to 15 MB each
+                        {isSpecialAccount
+                          ? `${profile.appearance.musicTracks.length} songs · no account limit · MP3, M4A, AAC, OGG, WAV, or WebM, up to 15 MB each`
+                          : `${profile.appearance.musicTracks.length} of 3 songs · MP3, M4A, AAC, OGG, WAV, or WebM, up to 15 MB each`}
                       </span>
                     </span>
                     <input

@@ -7,7 +7,10 @@ import BadgeManager, { type ManagedBadge } from "./BadgeManager";
 const BADGE_ADMIN_USERNAME = "whatthefuck";
 
 type BadgePageProps = {
-  searchParams: Promise<{ username?: string | string[] }>;
+  searchParams: Promise<{
+    username?: string | string[];
+    panel?: string | string[];
+  }>;
 };
 
 type AdminBadgeRow = {
@@ -20,6 +23,13 @@ type AdminBadgeRow = {
   is_visible: boolean | null;
   display_order: number | null;
   issued_at: string | null;
+};
+
+export type SpecialAccount = {
+  profile_id: string;
+  username: string;
+  display_name: string;
+  granted_at: string;
 };
 
 export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
@@ -46,8 +56,18 @@ export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
     notFound();
   }
 
+  const { data: specialAccountData, error: specialAccountError } =
+    await supabase.rpc("admin_get_special_accounts");
+
+  if (specialAccountError) {
+    throw new Error(`Unable to load special accounts: ${specialAccountError.message}`);
+  }
+
+  const specialAccounts = (specialAccountData ?? []) as SpecialAccount[];
   const params = await searchParams;
   const username = typeof params.username === "string" ? params.username.trim() : "";
+  const initialPanel =
+    params.panel === "special-accounts" ? "special-accounts" : "badges";
   let profile: { username: string; display_name: string } | null = null;
   let badges: ManagedBadge[] = [];
 
@@ -92,20 +112,22 @@ export default async function BadgeAdminPage({ searchParams }: BadgePageProps) {
           Back to dashboard
         </Link>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
-          Calvet administration
+          Developer panel
         </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">Profile badges</h1>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight">Developer panel</h1>
         <p className="mt-2 text-sm leading-6 text-white/55">
-          Find a profile, then add, rename, or remove its badges.
+          Manage profile badges and grant special-account access.
         </p>
 
         <BadgeManager
           key={`${username}:${badges
             .map((badge) => `${badge.id}:${badge.label}:${badge.is_visible}:${badge.position}`)
-            .join("|")}`}
+            .join("|")}:${specialAccounts.map((account) => account.username).join("|")}`}
           initialUsername={username}
+          initialPanel={initialPanel}
           profile={profile}
           badges={badges}
+          specialAccounts={specialAccounts}
         />
       </section>
     </main>

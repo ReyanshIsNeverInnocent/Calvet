@@ -74,8 +74,7 @@ export const profileSchema = z.object({
           coverUrl: optionalImageUrlSchema,
           coverImageUrl: optionalImageUrlSchema.optional()
         })
-      )
-      .max(3),
+      ),
     socialsMonochrome: z.boolean(),
     projectsHeading: z.string().trim().max(32),
     mediaHeading: z.string().trim().max(32),

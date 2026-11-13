@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { GripVertical } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
+import type { SpecialAccount } from "./page";
 
 export type ManagedBadge = {
   id: string;
@@ -15,8 +16,10 @@ export type ManagedBadge = {
 
 type BadgeManagerProps = {
   initialUsername: string;
+  initialPanel: "badges" | "special-accounts";
   profile: { username: string; display_name: string } | null;
   badges: ManagedBadge[];
+  specialAccounts: SpecialAccount[];
 };
 
 const BUILT_IN_BADGES = [
@@ -33,14 +36,19 @@ const BUILT_IN_BADGES = [
 
 export default function BadgeManager({
   initialUsername,
+  initialPanel,
   profile,
-  badges
+  badges,
+  specialAccounts: initialSpecialAccounts
 }: BadgeManagerProps) {
   const router = useRouter();
   const supabase = createClient();
   const [managedBadges, setManagedBadges] = useState(badges);
+  const [specialAccounts, setSpecialAccounts] = useState(initialSpecialAccounts);
   const [draggedBadgeId, setDraggedBadgeId] = useState<string | null>(null);
   const [username, setUsername] = useState(initialUsername);
+  const [activePanel, setActivePanel] =
+    useState<"badges" | "special-accounts">(initialPanel);
   const [kind, setKind] = useState<string>(BUILT_IN_BADGES[0][0]);
   const [customKind, setCustomKind] = useState("");
   const [label, setLabel] = useState("");
@@ -48,6 +56,10 @@ export default function BadgeManager({
   const [busy, setBusy] = useState(false);
   const activeProfile =
     profile && username.trim().toLowerCase() === profile.username ? profile : null;
+  const activeProfileIsSpecial = Boolean(
+    activeProfile &&
+      specialAccounts.some((account) => account.username === activeProfile.username)
+  );
 
   async function saveBadgePreferences(nextBadges: ManagedBadge[]) {
     if (!activeProfile) return;
@@ -87,7 +99,46 @@ export default function BadgeManager({
   function findProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
-    router.push(`/admin/badges?username=${encodeURIComponent(username.trim())}`);
+    router.push(
+      `/admin/badges?username=${encodeURIComponent(username.trim())}&panel=${activePanel}`
+    );
+  }
+
+  async function setSpecialAccess(enabled: boolean) {
+    if (!activeProfile) return;
+
+    setBusy(true);
+    setMessage("");
+    const { error } = await supabase.rpc("admin_set_special_account", {
+      p_username: activeProfile.username,
+      p_enabled: enabled
+    });
+    setBusy(false);
+
+    if (error) {
+      setMessage(`Could not ${enabled ? "grant" : "revoke"} special access: ${error.message}`);
+      return;
+    }
+
+    setSpecialAccounts((accounts) =>
+      enabled
+        ? [
+            {
+              profile_id: "",
+              username: activeProfile.username,
+              display_name: activeProfile.display_name,
+              granted_at: new Date().toISOString()
+            },
+            ...accounts.filter((account) => account.username !== activeProfile.username)
+          ]
+        : accounts.filter((account) => account.username !== activeProfile.username)
+    );
+    setMessage(
+      enabled
+        ? `Special access granted to @${activeProfile.username}.`
+        : `Special access revoked from @${activeProfile.username}.`
+    );
+    router.refresh();
   }
 
   async function addBadge(event: FormEvent<HTMLFormElement>) {
@@ -159,6 +210,30 @@ export default function BadgeManager({
 
   return (
     <div className="mt-8 space-y-6">
+      <nav
+        aria-label="Developer tools"
+        className="grid grid-cols-2 rounded-2xl border border-white/10 bg-white/[0.035] p-1"
+      >
+        {([
+          ["badges", "Profile badges"],
+          ["special-accounts", "Special accounts"]
+        ] as const).map(([panel, title]) => (
+          <button
+            key={panel}
+            type="button"
+            aria-pressed={activePanel === panel}
+            onClick={() => setActivePanel(panel)}
+            className={`rounded-xl px-4 py-3 text-sm font-semibold transition ${
+              activePanel === panel
+                ? "bg-white/10 text-white"
+                : "text-white/50 hover:text-white/80"
+            }`}
+          >
+            {title}
+          </button>
+        ))}
+      </nav>
+
       <form
         onSubmit={findProfile}
         className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:flex-row"
@@ -185,7 +260,7 @@ export default function BadgeManager({
         </button>
       </form>
 
-      {activeProfile && (
+      {activeProfile && activePanel === "badges" && (
         <>
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
             <p className="text-xs uppercase tracking-wider text-white/40">Selected profile</p>
@@ -338,6 +413,87 @@ export default function BadgeManager({
             )}
           </section>
         </>
+      )}
+
+      {activePanel === "special-accounts" && (
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
+              Music entitlement
+            </p>
+            <h2 className="mt-2 text-lg font-semibold">Special accounts</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
+              Special accounts can add as many profile songs as they need. Choose a profile above to grant or revoke access.
+            </p>
+            {activeProfile && (
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                <div>
+                  <p className="font-medium">{activeProfile.display_name}</p>
+                  <p className="text-sm text-white/45">@{activeProfile.username}</p>
+                  <p className="mt-1 text-xs text-white/40">
+                    {activeProfileIsSpecial
+                      ? "Special access is enabled"
+                      : "Standard account · up to 3 songs"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void setSpecialAccess(!activeProfileIsSpecial)}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50 ${
+                    activeProfileIsSpecial
+                      ? "border border-red-300/20 bg-red-300/10 text-red-100 hover:bg-red-300/15"
+                      : "bg-violet-300 text-[#17131f] hover:bg-violet-200"
+                  }`}
+                >
+                  {activeProfileIsSpecial ? "Revoke access" : "Grant special access"}
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Access list</h2>
+                <p className="mt-1 text-sm text-white/45">
+                  {specialAccounts.length} account{specialAccounts.length === 1 ? "" : "s"} with expanded song access
+                </p>
+              </div>
+            </div>
+            {specialAccounts.length === 0 ? (
+              <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-white/45">
+                No special accounts have been granted access.
+              </p>
+            ) : (
+              <ul className="mt-4 divide-y divide-white/[0.08]">
+                {specialAccounts.map((account) => (
+                  <li
+                    key={account.username}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{account.display_name}</p>
+                      <p className="text-xs text-white/45">@{account.username}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUsername(account.username);
+                        router.push(
+                          `/admin/badges?username=${encodeURIComponent(account.username)}&panel=special-accounts`
+                        );
+                      }}
+                      className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white/70 transition hover:bg-white/[0.06]"
+                    >
+                      Manage account
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       )}
 
       {username.trim() && !activeProfile && (

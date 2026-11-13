@@ -74,7 +74,6 @@ export function getAppearance(value: Partial<Appearance> | null | undefined): Ap
             (track.coverImageUrl === undefined ||
               typeof track.coverImageUrl === "string")
         )
-        .slice(0, 3)
     : [];
   const normalizedTracks =
     tracks.length > 0

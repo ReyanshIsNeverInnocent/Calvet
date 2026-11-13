@@ -35,7 +35,8 @@ export default async function DashboardPage() {
     projectsResult,
     mediaResult,
     badgesResult,
-    viewsResult
+    viewsResult,
+    specialAccessResult
   ] = await Promise.all([
     supabase
       .from("social_links")
@@ -63,7 +64,8 @@ export default async function DashboardPage() {
       .select("view_date, views")
       .eq("profile_id", initialProfile.id)
       .gte("view_date", sinceDate)
-      .order("view_date")
+      .order("view_date"),
+    supabase.rpc("current_user_has_special_access")
   ]);
 
   if (
@@ -71,14 +73,16 @@ export default async function DashboardPage() {
     projectsResult.error ||
     mediaResult.error ||
     badgesResult.error ||
-    viewsResult.error
+    viewsResult.error ||
+    specialAccessResult.error
   ) {
     const messages = [
       socialsResult.error?.message,
       projectsResult.error?.message,
       mediaResult.error?.message,
       badgesResult.error?.message,
-      viewsResult.error?.message
+      viewsResult.error?.message,
+      specialAccessResult.error?.message
     ].filter(Boolean);
     throw new Error(`Unable to load your profile content: ${messages.join("; ")}`);
   }
@@ -97,6 +101,7 @@ export default async function DashboardPage() {
       }))}
       initialBadges={badgesResult.data ?? []}
       initialViews={viewsResult.data ?? []}
+      isSpecialAccount={Boolean(specialAccessResult.data)}
     />
   );
 }
