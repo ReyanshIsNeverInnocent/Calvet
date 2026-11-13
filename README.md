@@ -1,7 +1,7 @@
 <h1 align="center">Calvet</h1>
 
 <p align="center">
-  <img src="https://i.ibb.co/JRnV2237/jadespfp.jpg" alt="Calvet banner" width="600" />
+  <img src="https://i.ibb.co/TqJwwDf1/image-7.png" alt="Calvet banner" width="600" />
 </p>
 
 <p align="center">
