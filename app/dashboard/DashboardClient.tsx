@@ -1707,7 +1707,7 @@ export default function DashboardClient({
                       Optional controls for surfaces, motion, and special effects.
                     </p>
                     <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                      <details className="sm:col-span-2 rounded-2xl border border-black/10 bg-white/70 p-4">
+                      <details className="sm:col-span-2 rounded-2xl border border-black/[0.08] bg-black/[0.025] p-4">
                         <summary className="cursor-pointer text-sm font-semibold">
                           Profile surfaces
                           <span className="ml-2 text-xs font-normal text-black/45">
